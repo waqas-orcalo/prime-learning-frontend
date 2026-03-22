@@ -26,7 +26,7 @@ const NAV_MAIN = [
   ]},
   { label: null, items: [
     { label: 'Tasks', href: '/tasks', icon: 'tasks' },
-    { label: 'Learning Activities', href: '/learning-activities/timesheet', icon: 'learning' },
+    { label: 'Learning Activities', href: '/learning-activities', icon: 'learning' },
     { label: 'Leaning Journals', href: '/learning-journals', icon: 'journals' },
     { label: 'Scorecard', href: '/scorecard', icon: 'scorecard' },
     { label: 'Courses', href: '/courses', icon: 'courses' },

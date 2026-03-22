@@ -3,223 +3,77 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const cardStyle: React.CSSProperties = {
-  backgroundColor: '#fff',
-  borderRadius: '12px',
-  border: '1px solid rgba(28,28,28,0.1)',
-  overflow: 'hidden',
-  marginBottom: '16px',
-}
-const cardHeaderStyle: React.CSSProperties = {
-  backgroundColor: 'rgba(28,28,28,0.05)',
-  padding: '12px 16px',
-  borderBottom: '1px solid rgba(28,28,28,0.1)',
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 700,
-  fontSize: '18px',
-  letterSpacing: '-0.36px',
-  color: '#000',
-}
-const labelStyle: React.CSSProperties = {
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 600,
-  fontSize: '14px',
-  color: '#1c1c1c',
-  marginBottom: '4px',
-  display: 'block',
-}
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: '8px',
-  border: '1px solid rgba(28,28,28,0.2)',
-  backgroundColor: 'rgba(28,28,28,0.03)',
-  fontFamily: "'Inter', sans-serif",
-  fontSize: '14px',
-  color: '#1c1c1c',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
+const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
+const iconCaretDown = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconCalendar = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#1c1c1c" stroke-width="1.2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="#1c1c1c" stroke-width="1.2" stroke-linecap="round"/></svg>`)
 
-const METHODS = [
-  'Online Course', 'Classroom Delivery', 'Workshop', 'Self-Directed Study',
-  'Competition', 'Assignment', 'Observation', 'Mentoring', 'E-Learning',
-]
+const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
+const font = (size: number, weight = 400, color = '#1c1c1c', extra: Record<string, unknown> = {}) => ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra })
 
 export default function NewActivityPage() {
   const router = useRouter()
-  const [title, setTitle] = useState('')
-  const [method, setMethod] = useState('Online Course')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('10:00')
-  const [aim, setAim] = useState('Level 3 Business Administration')
+  const [holistic, setHolistic] = useState(false)
+  const [separate, setSeparate] = useState(false)
 
   return (
     <div>
-      {/* Back + title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            background: 'none', border: '1px solid rgba(28,28,28,0.2)',
-            borderRadius: '8px', padding: '4px 12px', height: '28px',
-            cursor: 'pointer', fontFamily: "'Inter'", fontSize: '14px', color: '#1c1c1c',
-          }}
-        >
-          ← Back
-        </button>
-        <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '18px', letterSpacing: '-0.36px', color: '#000', margin: 0 }}>
-          Start New Learning Activity
-        </h1>
-      </div>
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Start New Learning Activity</span>
+        </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        {/* Left — Activity Details */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>Activity Details</div>
-          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>Activity Title</label>
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Enter activity title..."
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Learning Aim</label>
-              <select value={aim} onChange={e => setAim(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                <option>Level 3 Business Administration</option>
-                <option>Level 2 Marketing</option>
-                <option>Level 3 Project Management</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Method of Learning</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {METHODS.map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setMethod(m)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid',
-                      borderColor: method === m ? '#000' : 'rgba(28,28,28,0.2)',
-                      backgroundColor: method === m ? '#000' : 'transparent',
-                      color: method === m ? '#fff' : '#1c1c1c',
-                      fontFamily: "'Inter'", fontSize: '13px', cursor: 'pointer',
-                      fontWeight: method === m ? 600 : 400,
-                    }}
-                  >
-                    {m}
-                  </button>
-                ))}
+        {/* Content */}
+        <div style={{ padding: '20px' }}>
+          {/* Fields Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+            {/* Primary Method */}
+            <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '6px' }}>Primary Method:</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ ...font(14, 400, 'rgba(28,28,28,0.4)') }}>Select a method</span>
+                <img src={iconCaretDown} alt="" style={{ width: '14px', height: '14px', marginLeft: 'auto' }} />
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>Date</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+            {/* Date */}
+            <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '6px' }}>Date</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src={iconCalendar} alt="" style={{ width: '14px', height: '14px' }} />
+                <span style={{ ...font(14, 400, 'rgba(28,28,28,0.4)') }}>Pick a date</span>
+                <img src={iconCaretDown} alt="" style={{ width: '14px', height: '14px', marginLeft: 'auto' }} />
               </div>
-              <div>
-                <label style={labelStyle}>Start Time</label>
-                <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>End Time</label>
-                <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
-              </div>
+            </div>
+
+            {/* Title */}
+            <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '6px' }}>Title</div>
+              <input type="text" placeholder="Text" style={{ background: 'transparent', border: 'none', outline: 'none', ...font(14, 400, 'rgba(28,28,28,0.4)') }} />
             </div>
           </div>
-        </div>
 
-        {/* Right — Description */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>Activity Description</div>
-          <div style={{ padding: '16px' }}>
-            {/* Toolbar */}
-            <div style={{
-              display: 'flex', gap: '4px', flexWrap: 'wrap', padding: '8px',
-              borderRadius: '8px', border: '1px solid rgba(28,28,28,0.1)',
-              backgroundColor: 'rgba(28,28,28,0.02)', marginBottom: '12px',
-            }}>
-              {['B', 'I', 'U', 'H1', 'H2', '— List', 'Link'].map(btn => (
-                <button key={btn} style={{
-                  padding: '4px 10px', borderRadius: '6px',
-                  border: '1px solid rgba(28,28,28,0.15)',
-                  backgroundColor: '#fff',
-                  fontFamily: "'Inter'", fontSize: '13px', cursor: 'pointer',
-                  color: '#1c1c1c',
-                }}>
-                  {btn}
-                </button>
-              ))}
-            </div>
-            <div
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e: React.FormEvent<HTMLDivElement>) => {
-                // content captured via contentEditable
-                void e.currentTarget.textContent
-              }}
-              style={{
-                minHeight: '280px',
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid rgba(28,28,28,0.1)',
-                fontFamily: "'Inter'", fontSize: '14px', color: '#1c1c1c',
-                outline: 'none', lineHeight: '1.6',
-              }}
-            >
-              Describe the learning activity in detail...
+          {/* Evidence Recording Section */}
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ ...font(13, 400, '#1c1c1c'), marginBottom: '12px' }}>How will the evidence be recorded?</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={holistic} onChange={e => setHolistic(e.target.checked)} style={{ width: '15px', height: '15px', accentColor: '#1c1c1c', cursor: 'pointer' }} />
+                <span style={{ ...font(13, 400, '#1c1c1c') }}>Holistically against multiple criteria</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={separate} onChange={e => setSeparate(e.target.checked)} style={{ width: '15px', height: '15px', accentColor: '#1c1c1c', cursor: 'pointer' }} />
+                <span style={{ ...font(13, 400, '#1c1c1c') }}>Separately against individual criteria</span>
+              </label>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Off-The-Job Hours */}
-      <div style={cardStyle}>
-        <div style={cardHeaderStyle}>Off-The-Job Hours</div>
-        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {[
-            { label: 'Hours Claimed', placeholder: '0' },
-            { label: 'Minutes Claimed', placeholder: '0' },
-            { label: 'Location', placeholder: 'e.g. Workplace, College...' },
-          ].map((f, i) => (
-            <div key={i}>
-              <label style={labelStyle}>{f.label}</label>
-              <input placeholder={f.placeholder} style={inputStyle} />
-            </div>
-          ))}
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', ...font(14, 600, '#fff') }}>Start</button>
+            <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px', ...font(14, 600, '#1c1c1c') }}>Cancel</button>
+          </div>
         </div>
-      </div>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            height: '28px', padding: '4px 16px',
-            border: '1px solid rgba(28,28,28,0.2)', borderRadius: '8px',
-            backgroundColor: 'transparent', cursor: 'pointer',
-            fontFamily: "'Inter'", fontSize: '14px', color: '#1c1c1c',
-          }}
-        >
-          Cancel
-        </button>
-        <button style={{
-          height: '28px', padding: '4px 16px',
-          backgroundColor: '#000', borderRadius: '8px', border: 'none',
-          color: '#fff', fontFamily: "'Inter'", fontSize: '14px', cursor: 'pointer',
-        }}>
-          Save Activity
-        </button>
       </div>
     </div>
   )

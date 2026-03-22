@@ -1,241 +1,170 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
-const cardStyle: React.CSSProperties = {
-  backgroundColor: '#fff',
-  borderRadius: '12px',
-  border: '1px solid rgba(28,28,28,0.1)',
-  overflow: 'hidden',
-  marginBottom: '16px',
-}
-const cardHeaderStyle: React.CSSProperties = {
-  backgroundColor: 'rgba(28,28,28,0.05)',
-  padding: '12px 16px',
-  borderBottom: '1px solid rgba(28,28,28,0.1)',
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 700,
-  fontSize: '18px',
-  letterSpacing: '-0.36px',
-  color: '#000',
-}
-const thStyle: React.CSSProperties = {
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 400,
-  fontSize: '14px',
-  color: 'rgba(28,28,28,0.6)',
-  padding: '8px 16px',
-  textAlign: 'left',
-  borderBottom: '1px solid rgba(28,28,28,0.1)',
-  whiteSpace: 'nowrap',
-}
-const tdStyle: React.CSSProperties = {
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 400,
-  fontSize: '14px',
-  color: '#1c1c1c',
-  padding: '8px 16px',
-  borderBottom: '1px solid rgba(28,28,28,0.1)',
-}
+const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
+const iconBackCircle = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconChevronDown = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 
-const schedules = [
-  { week: 'Week 1', date: '06/01/2025', activity: 'Induction and Orientation', hours: '6h', type: 'On-the-job', status: 'Completed' },
-  { week: 'Week 2', date: '13/01/2025', activity: 'Unit 01 Overview', hours: '6h', type: 'Off-the-job', status: 'Completed' },
-  { week: 'Week 3', date: '20/01/2025', activity: 'Assessment Workshop', hours: '6h', type: 'Off-the-job', status: 'In Progress' },
-  { week: 'Week 4', date: '27/01/2025', activity: 'Skills Development Session', hours: '6h', type: 'Off-the-job', status: 'Pending' },
-  { week: 'Week 5', date: '03/02/2025', activity: 'Progress Review', hours: '2h', type: 'On-the-job', status: 'Pending' },
-  { week: 'Week 6', date: '10/02/2025', activity: 'Unit 02 Introduction', hours: '6h', type: 'Off-the-job', status: 'Pending' },
-]
-
-interface SignatureBlockProps {
-  title: string
-  name: string
-  date: string
-  signed: boolean
-}
-
-function SignatureBlock({ title, name, date, signed }: SignatureBlockProps) {
-  return (
-    <div style={{
-      border: '1px solid rgba(28,28,28,0.1)',
-      borderRadius: '8px',
-      padding: '16px',
-      backgroundColor: signed ? 'rgba(186,237,189,0.1)' : '#fff',
-    }}>
-      <div style={{ fontFamily: "'Inter'", fontWeight: 600, fontSize: '14px', marginBottom: '12px', color: '#1c1c1c' }}>
-        {title}
-      </div>
-      {signed ? (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span style={{ fontFamily: "'Inter'", fontSize: '22px', fontStyle: 'italic', color: '#1c1c1c', fontWeight: 700 }}>
-              {name}
-            </span>
-            <span style={{
-              padding: '2px 8px', borderRadius: '12px', fontSize: '12px',
-              backgroundColor: '#baedbd', color: '#1c1c1c', fontFamily: "'Inter'",
-            }}>
-              ✓ Signed
-            </span>
-          </div>
-          <div style={{ fontFamily: "'Inter'", fontSize: '12px', color: 'rgba(28,28,28,0.5)' }}>
-            Signed on {date}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div style={{
-            height: '60px',
-            border: '2px dashed rgba(28,28,28,0.2)',
-            borderRadius: '8px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'rgba(28,28,28,0.4)',
-            fontFamily: "'Inter'", fontSize: '14px',
-            marginBottom: '8px',
-          }}>
-            Click to sign
-          </div>
-          <button style={{
-            height: '28px', padding: '4px 12px',
-            backgroundColor: '#000', borderRadius: '8px', border: 'none',
-            color: '#fff', fontFamily: "'Inter'", fontSize: '14px', cursor: 'pointer',
-          }}>
-            Sign Now
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
+const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
+const font = (size: number, weight = 400, color = '#1c1c1c', extra: Record<string, unknown> = {}) => ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra })
 
 export default function PlanOfActivityPage() {
   const router = useRouter()
 
   return (
     <div>
-      {/* Back + title */}
+      {/* Back + Title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-        <button
-          onClick={() => router.push('/dashboard')}
-          style={{
-            background: 'none', border: '1px solid rgba(28,28,28,0.2)',
-            borderRadius: '8px', padding: '4px 12px', height: '28px',
-            cursor: 'pointer', fontFamily: "'Inter'", fontSize: '14px', color: '#1c1c1c',
-          }}
-        >
-          ← Back
-        </button>
-        <h1 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '18px', letterSpacing: '-0.36px', color: '#000', margin: 0 }}>
-          Plan of Activity
-        </h1>
+        <img src={iconBackCircle} alt="Back" style={{ width: '32px', height: '32px', cursor: 'pointer' }} onClick={() => router.back()} />
+        <h1 style={{ ...font(24, 700, '#1c1c1c'), margin: 0 }}>Plan Of Activity/action</h1>
       </div>
 
-      {/* Programme Information */}
-      <div style={cardStyle}>
-        <div style={cardHeaderStyle}>Programme Information</div>
-        <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      {/* Section 1: Schedules and Appointments */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Schedules and Appointments</span>
+          <span style={{ ...font(13, 400, '#0ea5e9') }}>This plan of activity/action has already been signed.</span>
+        </div>
+
+        <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Left Column */}
+          <div>
+            <div style={{ ...font(12, 600, '#1c1c1c'), marginBottom: '12px' }}>This Plan Of Activity/action Visit</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Title: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>Plan Of Activity/action - Mon 10/02/2025</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Date: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>📅 03/01/2025</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Type: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>✓ Face-to-face visit</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Learner Status: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>01. Active on Target</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Outcome: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>Not Set</span></div>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div>
+            <div style={{ ...font(12, 600, '#1c1c1c'), marginBottom: '12px' }}>Set Next Planned Visit</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Visit Type: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>New visit</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Type: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>✓ Face-to-face visit</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Location: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>Google Meet</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Start Date: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>📅 03/01/2025</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>End Date: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>📅 03/01/2025</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>Start Time: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>12:30PM</span></div>
+              <div><span style={{ ...font(12, 400, 'rgba(28,28,28,0.6)') }}>End Time: </span><span style={{ ...font(13, 400, '#1c1c1c') }}>13:30PM</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 2: Plan Of Activity/Action */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Plan Of Activity/Action</span>
+          <span style={{ ...font(13, 400, '#0ea5e9') }}>This plan of activity/action has already been signed.</span>
+        </div>
+
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <img src={iconChevronDown} alt="" style={{ width: '16px', height: '16px' }} />
+            <span style={{ ...font(13, 700, '#1c1c1c') }}>Tasks</span>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' as const, marginBottom: '16px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(28,28,28,0.1)' }}>
+                {['Details of Planned Learning Activity', 'Learning Outcomes', 'Method', 'Start by', 'Map Evidence', 'Start Date', 'Due Date'].map((h) => (
+                  <th key={h} style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), padding: '8px', textAlign: 'left' as const, fontWeight: 400, whiteSpace: 'nowrap' as const }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>To take your English Reading Test L2</td>
+                <td style={{ ...font(13, 400, '#4169e1'), padding: '12px 8px', cursor: 'pointer' }}>[01 - 1 outcome, 1 criteria]</td>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>FS Exam (FSE1)</td>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>Trainer</td>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>Holistically</td>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>03/01/2025</td>
+                <td style={{ ...font(13, 400, '#1c1c1c'), padding: '12px 8px' }}>03/01/2025</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ ...font(13, 700, '#1c1c1c'), marginBottom: '6px', display: 'block' }}>Learning Resources:</span>
+            <span style={{ ...font(13, 400, '#4169e1'), cursor: 'pointer' }}>📄 OneFile documentation.pdf</span>
+          </div>
+
+          <Link href="/learning-activities/evidence">
+            <button style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', ...font(14, 600, '#fff') }}>Go to Learning Activity</button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Section 3: Attachments */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Attachments</span>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <span style={{ ...font(13, 400, '#1c1c1c') }}>Nothing Attached</span>
+        </div>
+      </div>
+
+      {/* Section 4: Feedback & Comments */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Feedback & Comments</span>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '4px' }}>From: Tahmidul Hassan (Trainer) on 10/02/2025 19:49 To: John doe (Learner) Unread</div>
+          <div style={{ ...font(13, 400, '#1c1c1c') }}>Good job</div>
+        </div>
+      </div>
+
+      {/* Section 5: Issues Arising */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Issues Arising</span>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          <span style={{ ...font(13, 400, '#1c1c1c') }}>no issue</span>
+        </div>
+      </div>
+
+      {/* Section 6: Signatures */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ ...font(15, 700, '#1c1c1c') }}>Signatures</span>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {[
-            { label: 'Learner', value: 'John Doe' },
-            { label: 'Programme', value: 'Level 3 Business Administration' },
-            { label: 'Workplace', value: 'Default Workplace' },
-            { label: 'Trainer', value: 'Josseme' },
-            { label: 'Start Date', value: '06/01/2025' },
-            { label: 'End Date', value: '05/01/2026' },
-            { label: 'OTJ Target', value: '427h' },
-            { label: 'OTJ Achieved', value: '77h 20m' },
-          ].map((item, i) => (
-            <div key={i}>
-              <div style={{ fontFamily: "'Inter'", fontSize: '12px', color: 'rgba(28,28,28,0.5)', marginBottom: '2px' }}>
-                {item.label}
+            { name: 'John Doe (Learner)', date: '2025/03/03', checked: true },
+            { name: 'Trainer', date: '2025/03/04', checked: true },
+            { name: 'Internal Quality Assurer', date: '', checked: false },
+            { name: 'External Quality Assurer', date: '', checked: false },
+          ].map((sig, i) => (
+            <div key={i} style={{ backgroundColor: 'rgba(28,28,28,0.04)', border: '1px solid rgba(28,28,28,0.08)', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
+                <input type="checkbox" checked={sig.checked} readOnly style={{ width: '15px', height: '15px', accentColor: '#1c1c1c', cursor: 'pointer', marginTop: '2px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ ...font(13, 600, '#1c1c1c'), marginBottom: '4px' }}>Signature</div>
+                  <div style={{ ...font(12, 400, 'rgba(28,28,28,0.5)', { fontStyle: 'italic' }) }}>I agree that the information provided here is an accurate account of what has taken place.</div>
+                </div>
               </div>
-              <div style={{ fontFamily: "'Inter'", fontWeight: 600, fontSize: '14px', color: '#1c1c1c' }}>
-                {item.value}
+              <div style={{ textAlign: 'right' as const, flexShrink: 0, marginLeft: '16px' }}>
+                <div style={{ ...font(13, 400, '#1c1c1c') }}>{sig.name}</div>
+                {sig.date && <div style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), marginTop: '2px' }}>{sig.date}</div>}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Training Schedule */}
-      <div style={cardStyle}>
-        <div style={{ ...cardHeaderStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Training Schedule</span>
-          <button style={{
-            height: '28px', padding: '4px 12px',
-            backgroundColor: '#000', borderRadius: '8px', border: 'none',
-            color: '#fff', fontFamily: "'Inter'", fontSize: '14px', cursor: 'pointer',
-          }}>
-            + Add Session
-          </button>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Week</th>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Activity</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>Hours</th>
-              <th style={thStyle}>Type</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedules.map((s, i) => (
-              <tr key={i}>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{s.week}</td>
-                <td style={tdStyle}>{s.date}</td>
-                <td style={tdStyle}>{s.activity}</td>
-                <td style={{ ...tdStyle, textAlign: 'center' }}>{s.hours}</td>
-                <td style={tdStyle}>
-                  <span style={{
-                    padding: '2px 8px', borderRadius: '12px', fontSize: '12px',
-                    backgroundColor: s.type === 'Off-the-job' ? '#bfdbfe' : '#baedbd',
-                    color: '#1c1c1c',
-                  }}>
-                    {s.type}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'center' }}>
-                  <span style={{
-                    padding: '2px 8px', borderRadius: '12px', fontSize: '12px',
-                    backgroundColor: s.status === 'Completed' ? '#baedbd' :
-                      s.status === 'In Progress' ? '#bfdbfe' : 'rgba(28,28,28,0.08)',
-                    color: '#1c1c1c',
-                  }}>
-                    {s.status}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'center', borderBottom: i === schedules.length - 1 ? 'none' : undefined }}>
-                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#1c1c1c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#1c1c1c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <polyline points="3 6 5 6 21 6" stroke="#1c1c1c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M19 6l-1 14H6L5 6m5 0V4h4v2" stroke="#1c1c1c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Signatures */}
-      <div style={cardStyle}>
-        <div style={cardHeaderStyle}>Signatures</div>
-        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          <SignatureBlock title="Learner" name="John Doe" date="06/01/2025" signed={true} />
-          <SignatureBlock title="Trainer / Assessor" name="Josseme" date="06/01/2025" signed={true} />
-          <SignatureBlock title="Employer / IQA" name="" date="" signed={false} />
-        </div>
+      {/* Cancel Button */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px', ...font(14, 600, '#1c1c1c') }}>Cancel</button>
       </div>
     </div>
   )
