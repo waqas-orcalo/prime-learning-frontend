@@ -807,9 +807,16 @@ function CoursesPage({ token }: { token: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 interface TaskRecord {
   _id: string; title: string; description?: string; status: string;
-  priority: string; dueDate?: string; assignedTo?: { _id: string; firstName: string; lastName: string } | string;
+  priority: string; dueDate?: string;
+  reference?: string; primaryMethod?: string; secondaryMethods?: string[];
+  assignedTo?: { _id: string; firstName: string; lastName: string } | string;
   createdAt?: string
 }
+
+const METHOD_OPTIONS = [
+  'Assignment', 'FS Prep', 'Gateway', 'Observation',
+  'Project', 'Questions', 'SLC Observation', 'Teaching and Learning',
+]
 
 function TasksPage({ token }: { token: string }) {
   const [tasks, setTasks]           = useState<TaskRecord[]>([])
@@ -830,7 +837,8 @@ function TasksPage({ token }: { token: string }) {
   const LIMIT = 10
 
   const [form, setForm] = useState({
-    title: '', description: '', priority: 'MEDIUM', status: 'PENDING', dueDate: ''
+    title: '', description: '', priority: 'MEDIUM', status: 'PENDING', dueDate: '',
+    reference: '', primaryMethod: 'Assignment', secondaryMethods: [] as string[],
   })
 
   // Expose setForm for browser-automation testing
@@ -857,29 +865,46 @@ function TasksPage({ token }: { token: string }) {
   // Load users for assign modal
   useEffect(() => {
     if (!assignModal) return
-    apiFetch(`${apiBase()}/users?limit=100&role=LEARNER`, token)
+    apiFetch(`${apiBase()}/users?limit=100`, token)
       .then(r => r.json())
       .then(b => setAssignUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
       .catch(() => {})
   }, [assignModal, token])
 
   const openCreate = () => {
-    setForm({ title: '', description: '', priority: 'MEDIUM', status: 'PENDING', dueDate: '' })
+    setForm({ title: '', description: '', priority: 'MEDIUM', status: 'PENDING', dueDate: '',
+      reference: '', primaryMethod: 'Assignment', secondaryMethods: [] })
     setShowCreate(true)
   }
   const openEdit = (t: TaskRecord) => {
     setForm({ title: t.title, description: t.description ?? '',
       priority: t.priority ?? 'MEDIUM', status: t.status ?? 'PENDING',
-      dueDate: t.dueDate ? t.dueDate.slice(0, 10) : '' })
+      dueDate: t.dueDate ? t.dueDate.slice(0, 10) : '',
+      reference: t.reference ?? '', primaryMethod: t.primaryMethod ?? 'Assignment',
+      secondaryMethods: t.secondaryMethods ?? [] })
     setEditTask(t)
+  }
+
+  const toggleSecondary = (method: string) => {
+    setForm(f => ({
+      ...f,
+      secondaryMethods: f.secondaryMethods.includes(method)
+        ? f.secondaryMethods.filter(m => m !== method)
+        : [...f.secondaryMethods, method],
+    }))
   }
 
   const handleSave = async () => {
     setSaving(true); setError('')
     try {
-      const body: Record<string, string> = { title: form.title, priority: form.priority, status: form.status }
-      if (form.description) body.description = form.description
-      if (form.dueDate)     body.dueDate     = form.dueDate
+      const body: Record<string, unknown> = {
+        title: form.title, priority: form.priority, status: form.status,
+        primaryMethod: form.primaryMethod,
+      }
+      if (form.description)                  body.description      = form.description
+      if (form.dueDate)                      body.dueDate          = form.dueDate
+      if (form.reference.trim())             body.reference        = form.reference.trim()
+      if (form.secondaryMethods.length > 0)  body.secondaryMethods = form.secondaryMethods
       const url    = editTask ? `${apiBase()}/tasks/${editTask._id}` : `${apiBase()}/tasks`
       const method = editTask ? 'PATCH' : 'POST'
       const res    = await apiFetch(url, token, { method, body: JSON.stringify(body) })
@@ -963,10 +988,27 @@ function TasksPage({ token }: { token: string }) {
                       <div style={{ ...font(14, 500, NAVY) }}>{t.title}</div>
                       {t.description && (
                         <div style={{ ...font(12, 400, MUTED), marginTop: 2,
-                          maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                          maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                           {t.description}
                         </div>
                       )}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' as const }}>
+                        {t.primaryMethod && (
+                          <span style={{ background: '#e5ecf6', borderRadius: 4, padding: '1px 6px', ...font(11, 500, '#1c1c1c') }}>
+                            {t.primaryMethod}
+                          </span>
+                        )}
+                        {t.reference && (
+                          <span style={{ background: 'rgba(95,201,102,0.12)', borderRadius: 4, padding: '1px 6px', ...font(11, 500, '#2a8c30') }}>
+                            Ref: {t.reference}
+                          </span>
+                        )}
+                        {(t.secondaryMethods ?? []).length > 0 && (
+                          <span style={{ background: 'rgba(108,99,255,0.08)', borderRadius: 4, padding: '1px 6px', ...font(11, 400, INDIGO) }}>
+                            +{(t.secondaryMethods ?? []).length} methods
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '12px' }}>{priorityBadge(t.priority)}</td>
                     <td style={{ padding: '12px' }}>{taskStatusBadge(t.status)}</td>
@@ -995,15 +1037,87 @@ function TasksPage({ token }: { token: string }) {
       {/* Create / Edit Modal */}
       {(showCreate || editTask) && (
         <Modal title={editTask ? 'Edit Task' : 'Create Task'} onClose={() => { setShowCreate(false); setEditTask(null) }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Field label="Title">
-              <input style={inputStyle} value={form.title}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+
+            {/* Title */}
+            <Field label="Task Title *">
+              <input style={inputStyle} value={form.title} autoFocus
+                placeholder="e.g. Complete Unit 01 workbook"
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </Field>
-            <Field label="Description">
-              <textarea style={{ ...inputStyle, resize: 'vertical' as const }} rows={3} value={form.description}
+
+            {/* Details of Planned Assessment */}
+            <Field label="Details of Planned Assessment">
+              <textarea style={{ ...inputStyle, resize: 'vertical' as const, lineHeight: '1.5' }} rows={3}
+                placeholder="Describe what the learner needs to do..."
+                value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </Field>
+
+            {/* Section label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(28,28,28,0.08)' }} />
+              <span style={{ ...font(11, 500, MUTED), textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Assessment Fields</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(28,28,28,0.08)' }} />
+            </div>
+
+            {/* Primary Method + Due Date + Reference */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px', gap: 12 }}>
+              <Field label="Primary Method">
+                <select style={inputStyle} value={form.primaryMethod}
+                  onChange={e => setForm(f => ({ ...f, primaryMethod: e.target.value }))}>
+                  {METHOD_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </Field>
+              <Field label="Due Date">
+                <input style={inputStyle} type="date" value={form.dueDate}
+                  onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+              </Field>
+              <Field label="Reference">
+                <input style={inputStyle} value={form.reference}
+                  placeholder="e.g. FSE1"
+                  onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} />
+              </Field>
+            </div>
+
+            {/* Secondary Methods checkboxes */}
+            <Field label="Secondary Methods">
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
+                background: 'rgba(28,28,28,0.02)', border: BORDER,
+                borderRadius: 10, padding: 14,
+              }}>
+                {METHOD_OPTIONS.map(method => {
+                  const checked = form.secondaryMethods.includes(method)
+                  return (
+                    <button key={method} type="button" onClick={() => toggleSecondary(method)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '4px 0', textAlign: 'left' as const,
+                      }}>
+                      <svg width="17" height="17" viewBox="0 0 17 17" fill="none" style={{ flexShrink: 0 }}>
+                        <rect x="1" y="1" width="15" height="15" rx="4"
+                          stroke={checked ? '#1c1c1c' : 'rgba(28,28,28,0.25)'}
+                          strokeWidth="1.4"
+                          fill={checked ? '#1c1c1c' : 'transparent'} />
+                        {checked && <path d="M4 8.5l3 3 6-6" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>}
+                      </svg>
+                      <span style={{ ...font(13, checked ? 500 : 400), whiteSpace: 'nowrap' as const }}>{method}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+
+            {/* Section label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(28,28,28,0.08)' }} />
+              <span style={{ ...font(11, 500, MUTED), textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Status & Priority</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(28,28,28,0.08)' }} />
+            </div>
+
+            {/* Priority + Status */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Priority">
                 <select style={inputStyle} value={form.priority}
@@ -1022,14 +1136,12 @@ function TasksPage({ token }: { token: string }) {
                 </select>
               </Field>
             </div>
-            <Field label="Due Date">
-              <input style={inputStyle} type="date" value={form.dueDate}
-                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
-            </Field>
+
             {error && <div style={{ ...font(13, 400, RED) }}>{error}</div>}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
               <button style={btn()} onClick={() => { setShowCreate(false); setEditTask(null) }}>Cancel</button>
-              <button style={btn(true)} onClick={handleSave} disabled={saving}>
+              <button style={btn(true)} onClick={handleSave} disabled={saving || !form.title.trim()}>
                 {saving ? 'Saving…' : editTask ? 'Save Changes' : 'Create Task'}
               </button>
             </div>
@@ -1100,7 +1212,7 @@ function AssignPage({ token }: { token: string }) {
   const [error, setError]           = useState('')
 
   useEffect(() => {
-    apiFetch(`${apiBase()}/users?limit=100&role=LEARNER`, token)
+    apiFetch(`${apiBase()}/users?limit=100`, token)
       .then(r => r.json())
       .then(b => setUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
       .catch(() => {})
