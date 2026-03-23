@@ -181,9 +181,9 @@ const TAB_PILLS: Record<string, { label: string; icon: string; route: string }[]
     { label: 'Progress (0%)', icon: iconPieChart, route: '/progress-review' },
   ],
   Forms: [
-    { label: 'Learner feedback from teach sessions', icon: iconFormDoc, route: '/learning-activities' },
-    { label: 'Exit review and Programme Evaluation', icon: iconFormDoc, route: '/learning-activities' },
-    { label: '5. Learning Support Form', icon: iconFormDoc, route: '/learning-activities' },
+    { label: 'Learner feedback from teach sessions', icon: iconFormDoc, route: '/forms/learner-feedback' },
+    { label: 'Exit review and Programme Evaluation', icon: iconFormDoc, route: '/forms/exit-review' },
+    { label: '5. Learning Support Form', icon: iconFormDoc, route: '/forms/learning-support' },
   ],
 }
 const INFO_CARDS = [
