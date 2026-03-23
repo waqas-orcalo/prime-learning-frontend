@@ -9,6 +9,14 @@ const iconChartPolar = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" h
 const iconFiles = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M213.66 82.34l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.34-5.66ZM160 51.31 188.69 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48v120Z" fill="#1c1c1c"/></svg>`)
 const iconCalendarCheck = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M208 32h-24V24a8 8 0 0 0-16 0v8H88V24a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16ZM72 48v8a8 8 0 0 0 16 0V48h80v8a8 8 0 0 0 16 0V48h24v32H48V48Zm136 160H48V96h160v112Zm-68.69-82.34a8 8 0 0 1 0 11.32l-40 40a8 8 0 0 1-11.31 0l-16-16a8 8 0 0 1 11.31-11.31L93.66 160l34.34-34.34a8 8 0 0 1 11.31 0Z" fill="#1c1c1c"/></svg>`)
 const iconCalendarBlank = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M208 32h-24V24a8 8 0 0 0-16 0v8H88V24a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16ZM72 48v8a8 8 0 0 0 16 0V48h80v8a8 8 0 0 0 16 0V48h24v32H48V48Zm136 160H48V96h160v112Z" fill="#1c1c1c"/></svg>`)
+const iconDownload = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M224 152v56a16 16 0 0 1-16 16H48a16 16 0 0 1-16-16v-56a8 8 0 0 1 16 0v56h160v-56a8 8 0 0 1 16 0Zm-101.66 5.66a8 8 0 0 0 11.32 0l40-40a8 8 0 0 0-11.32-11.32L136 132.69V40a8 8 0 0 0-16 0v92.69l-26.34-26.35a8 8 0 0 0-11.32 11.32Z" fill="#1c1c1c"/></svg>`)
+const iconUsers = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M117.25 157.92a60 60 0 1 0-66.5 0A95.83 95.83 0 0 0 16 207a8 8 0 0 0 16 0 80 80 0 0 1 160 0 8 8 0 0 0 16 0 95.83 95.83 0 0 0-50.75-49.08ZM40 108a44 44 0 1 1 44 44 44.05 44.05 0 0 1-44-44Zm210.14 98.7a8 8 0 0 1-6.14-9.46 80.05 80.05 0 0 0-54.07-91.94 8 8 0 1 1 4.07-15.48 96 96 0 0 1 64.93 110.35 8 8 0 0 1-8.79 6.53ZM201.3 34.92a8 8 0 0 1 4-15.49 96.06 96.06 0 0 1 0 186.14 8 8 0 0 1-4-15.49 80.06 80.06 0 0 0 0-155.16Z" fill="#1c1c1c"/></svg>`)
+const iconPresentation = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M216 40H136V24a8 8 0 0 0-16 0v16H40a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h176v160H40Zm144 36H72a8 8 0 0 0 0 16h112a8 8 0 0 0 0-16Zm0 40H72a8 8 0 0 0 0 16h112a8 8 0 0 0 0-16Zm0 40H72a8 8 0 0 0 0 16h112a8 8 0 0 0 0-16Z" fill="#1c1c1c"/></svg>`)
+const iconSearch = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M229.66 218.34l-50.07-50.07a88.11 88.11 0 1 0-11.31 11.31l50.06 50.07a8 8 0 0 0 11.32-11.31ZM40 112a72 72 0 1 1 72 72 72.08 72.08 0 0 1-72-72Z" fill="#1c1c1c"/></svg>`)
+const iconTrendUp = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M240 56v64a8 8 0 0 1-16 0V75.31l-82.34 82.35a8 8 0 0 1-11.32 0L96 123.31l-74.34 74.35a8 8 0 0 1-11.32-11.32l80-80a8 8 0 0 1 11.32 0L136 140.69 212.69 64H168a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Z" fill="#1c1c1c"/></svg>`)
+const iconGauge = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M200 168a72.08 72.08 0 0 0-72-72A72 72 0 0 0 60.59 196a8 8 0 1 0 13.85-8A56 56 0 1 1 184 168a56.62 56.62 0 0 1-3.41 19.2 8 8 0 0 0 15.09 5.33A72.51 72.51 0 0 0 200 168Zm-72-48a8 8 0 0 0-8 8v37.49l-16.63 16.63a8 8 0 1 0 11.32 11.32l18.57-18.57A8 8 0 0 0 136 172v-44a8 8 0 0 0-8-8Z" fill="#1c1c1c"/></svg>`)
+const iconPieChart = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M232 128A104 104 0 0 1 43.1 185.12 104 104 0 0 1 128 24a8 8 0 0 1 8 8v88h88a8 8 0 0 1 8 8Zm-24.37 20H120V35.47A88 88 0 1 0 207.63 148Z" fill="#1c1c1c"/></svg>`)
+const iconFormDoc = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 256 256" fill="none"><path d="M213.66 82.34l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.34-5.66ZM160 51.31 188.69 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48v120Zm-40-80a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h56a8 8 0 0 1 8 8Zm16 32a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h72a8 8 0 0 1 8 8Z" fill="#1c1c1c"/></svg>`)
 const iconChevronSmall = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 const iconChevronLeft = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#1c1c1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 const iconChevronRight = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="#1c1c1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -153,12 +161,31 @@ const INFO_OPTIONS = [
   { label: 'Expert Witnesses & Witnesses (0)', route: '/dashboard' },
 ]
 const MAIN_TABS = ['Activity','Manage','Progress','Forms']
-const SUB_TABS = [
-  { label: 'Activity', icon: iconChartPolar, route: '/activity-log' },
-  { label: 'Learning Activity Evidence', icon: iconFiles, route: '/learning-activities/evidence' },
-  { label: 'Timesheet', icon: iconCalendarCheck, route: '/learning-journals/timesheet' },
-  { label: 'Visit', icon: iconCalendarBlank, route: '/learning-activities/visit' },
-]
+
+const TAB_PILLS: Record<string, { label: string; icon: string; route: string }[]> = {
+  Activity: [
+    { label: 'Activity', icon: iconChartPolar, route: '/activity-log' },
+    { label: 'Learning Activity Evidence', icon: iconFiles, route: '/learning-activities/evidence' },
+    { label: 'Timesheet', icon: iconCalendarCheck, route: '/learning-journals/timesheet' },
+    { label: 'Visit', icon: iconCalendarBlank, route: '/learning-activities/visit' },
+  ],
+  Manage: [
+    { label: 'Download Portfolio', icon: iconDownload, route: '/learning-activities/download-portfolio' },
+    { label: 'Expert / Witnesses', icon: iconUsers, route: '/learning-activities/expert-witnesses' },
+    { label: 'Portfolio Showcase', icon: iconPresentation, route: '/learning-activities/showcase' },
+  ],
+  Progress: [
+    { label: 'Gap Analysis', icon: iconSearch, route: '/learning-activities' },
+    { label: 'Learning Journey', icon: iconTrendUp, route: '/learning-activities' },
+    { label: 'Scorecard', icon: iconGauge, route: '/scorecard' },
+    { label: 'Progress (0%)', icon: iconPieChart, route: '/progress-review' },
+  ],
+  Forms: [
+    { label: 'Learner feedback from teach sessions', icon: iconFormDoc, route: '/learning-activities' },
+    { label: 'Exit review and Programme Evaluation', icon: iconFormDoc, route: '/learning-activities' },
+    { label: '5. Learning Support Form', icon: iconFormDoc, route: '/learning-activities' },
+  ],
+}
 const INFO_CARDS = [
   { title: 'Plan Of Activity/action', desc: 'View pending and completed Plan Of Activity/action', icon: iconClipboard, statLabel: 'Pending:', stat: '01 / 03', route: '/plan-of-activity' },
   { title: "View the learner's Off-The-Job training record", desc: 'Lorem Ipsum place holder text', icon: iconDocument, statLabel: 'OTJ Total:', stat: '0 / 0', route: '/learning-journals/timesheet' },
@@ -195,8 +222,11 @@ export default function DashboardPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' as const, flex: 1 }}>
-            {SUB_TABS.map(st => (
-              <button key={st.label} onClick={() => router.push(st.route)} style={{ display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '16px', padding: '10px 16px', backgroundColor: '#fff', cursor: 'pointer', ...font(14, 400, '#1c1c1c') }}>
+            {(TAB_PILLS[mainTab] ?? []).map(st => (
+              <button key={st.label} onClick={() => router.push(st.route)} style={{ display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '16px', padding: '10px 16px', backgroundColor: '#fff', cursor: 'pointer', ...font(14, 400, '#1c1c1c') }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(28,28,28,0.04)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
+              >
                 <img src={st.icon} alt="" style={{ width: '20px', height: '20px' }} />
                 <span>{st.label}</span>
                 <img src={iconChevronSmall} alt="" style={{ width: '14px', height: '14px' }} />
