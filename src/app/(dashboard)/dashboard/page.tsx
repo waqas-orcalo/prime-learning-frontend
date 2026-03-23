@@ -175,8 +175,8 @@ const TAB_PILLS: Record<string, { label: string; icon: string; route: string }[]
     { label: 'Portfolio Showcase', icon: iconPresentation, route: '/learning-activities/showcase' },
   ],
   Progress: [
-    { label: 'Gap Analysis', icon: iconSearch, route: '/learning-activities' },
-    { label: 'Learning Journey', icon: iconTrendUp, route: '/learning-activities' },
+    { label: 'Gap Analysis', icon: iconSearch, route: '/gap-analysis' },
+    { label: 'Learning Journey', icon: iconTrendUp, route: '/learning-journey' },
     { label: 'Scorecard', icon: iconGauge, route: '/scorecard' },
     { label: 'Progress (0%)', icon: iconPieChart, route: '/progress-review' },
   ],

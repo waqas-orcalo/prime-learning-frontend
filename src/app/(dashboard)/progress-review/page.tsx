@@ -1,151 +1,131 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
-const iconBackCircle = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconBook = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#888" stroke-width="1.4"/><path d="M8 7h8M8 11h8M8 15h5" stroke="#888" stroke-width="1.3" stroke-linecap="round"/></svg>`)
+const iconCaret = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
-const font = (size: number, weight = 400, color = '#1c1c1c', extra: Record<string, unknown> = {}) => ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra })
+const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
+  ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra } as React.CSSProperties)
+
+const UNITS = [
+  { id: 'u1', name: 'Business Administrator Gateway to End Point', actual: 0, progress: 51 },
+  { id: 'u2', name: '~ Business Administrator End Point Assessment', actual: 0, progress: 51 },
+  { id: 'u3', name: 'Business Administrator Apprenticeship Standard', actual: 0, progress: 51 },
+  { id: 'u4', name: 'NCFE Level 2 Functional Skills Qualification in English (September 2019)', actual: 0, progress: 51 },
+  { id: 'u5', name: 'NCFE Level 2 Functional Skills Qualification in Math (September 2019)', actual: 0, progress: 51 },
+]
 
 function ProgressBar({ value }: { value: number }) {
   return (
-    <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(28,28,28,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${value}%`, backgroundColor: '#1c1c1c', transition: 'width 0.3s' }} />
+    <div style={{ width: '100%', height: 7, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${value}%`, background: '#818cf8', borderRadius: 4, transition: 'width 0.4s' }} />
     </div>
   )
 }
 
-export default function ProgressReviewPage() {
+function UnitCard({ unit, onClick }: { unit: typeof UNITS[0]; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? '#f9f9f9' : '#fff',
+        border: '1px solid rgba(28,28,28,0.12)', borderRadius: 12,
+        padding: '16px', cursor: 'pointer', textAlign: 'left', width: '100%',
+        transition: 'background 0.15s'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+        <img src={iconBook} width={24} height={24} alt="" style={{ flexShrink: 0, marginTop: 2 }} />
+        <span style={{ ...font(13, 500), lineHeight: '20px' }}>{unit.name}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <p style={{ ...font(11, 400, '#888'), margin: '0 0 4px' }}>Actual:</p>
+          <p style={{ ...font(18, 600), margin: 0 }}>{unit.actual}%</p>
+        </div>
+        <div>
+          <p style={{ ...font(11, 400, '#888'), margin: '0 0 6px' }}>Unit Progress</p>
+          <ProgressBar value={unit.progress} />
+          <p style={{ ...font(11, 700, '#6366f1'), margin: '4px 0 0', textAlign: 'right' }}>{unit.progress}%</p>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function ProgressReviewInner() {
   const router = useRouter()
+  const [includePending, setIncludePending] = useState(false)
+  const [showDetailed, setShowDetailed] = useState(false)
+  const [selectedUnit, setSelectedUnit] = useState(1)
+  const overallProgress = 0
 
   return (
-    <div>
-      {/* Back + Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-        <img src={iconBackCircle} alt="Back" style={{ width: '32px', height: '32px', cursor: 'pointer' }} onClick={() => router.back()} />
-        <h1 style={{ ...font(24, 700, '#1c1c1c'), margin: 0 }}>Progress Review Details</h1>
-      </div>
-
-      {/* Summary Card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
-        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ ...font(15, 700, '#1c1c1c') }}>Summary</span>
+    <div style={{ padding: '24px 28px', maxWidth: 1060, ...FF }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={font(15, 500)}>Over all Progress:</span>
+          <span style={{ padding: '3px 10px', borderRadius: 12, background: '#dcfce7', ...font(13, 700, '#16a34a') }}>
+            {overallProgress}%
+          </span>
         </div>
-        <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {[
-            { label: 'Actual Date', value: '03/01/2025' },
-            { label: 'Scheduled Progress Review Date', value: '08/01/2025' },
-            { label: 'Last Progress Review Date', value: 'None' },
-            { label: 'Progress Review Type', value: 'Progress Review' },
-            { label: 'LSF', value: 'Not specified' },
-            { label: 'Learner Status', value: '01. Active on Target' },
-          ].map((row, i) => (
-            <div key={i}>
-              <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '4px' }}>{row.label}</div>
-              <div style={{ ...font(13, 400, '#1c1c1c') }}>{row.value}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={includePending} onChange={e => setIncludePending(e.target.checked)} style={{ width: 13, height: 13 }} />
+            <span style={font(12)}>Include pending learning activities</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={showDetailed} onChange={e => setShowDetailed(e.target.checked)} style={{ width: 13, height: 13 }} />
+            <span style={font(12)}>Show detailed view</span>
+          </label>
         </div>
       </div>
 
-      {/* Unit Progression Card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
-        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ ...font(15, 700, '#1c1c1c') }}>Unit Progression between progress reviews</span>
-        </div>
-        <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {[
-            { name: '[Unit 01] End Point Assessment', progress: 51 },
-            { name: '[Unit 01] Gateway to End Point Assessment', progress: 51 },
-            { name: '[01] NCFE Level 2 Functional Skills Qualification in English', progress: 51 },
-          ].map((unit, i) => (
-            <div key={i} style={{ backgroundColor: 'rgba(28,28,28,0.02)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ ...font(13, 600, '#4169e1'), marginBottom: '8px' }}>{unit.name}</div>
-              <div style={{ ...font(11, 400, 'rgba(28,28,28,0.5)'), marginBottom: '6px' }}>Planned end date: <span style={{ ...font(11, 400, '#1c1c1c') }}>03/01/2025</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ ...font(11, 400, 'rgba(28,28,28,0.5)') }}>Progress</span>
-              </div>
-              <ProgressBar value={unit.progress} />
-              <div style={{ ...font(12, 600, '#1c1c1c'), marginTop: '4px' }}>{unit.progress}%</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Achievements between reviews Card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
-        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ ...font(15, 700, '#1c1c1c') }}>Achievements between reviews</span>
-        </div>
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div>
-            <span style={{ ...font(12, 600, '#1c1c1c') }}>Learning Activities Completed: </span>
-            <span style={{ ...font(13, 400, '#1c1c1c') }}>[AS1] [PRJ1]</span>
-          </div>
-          <div>
-            <span style={{ ...font(12, 600, '#1c1c1c') }}>Units Signed Off: </span>
-            <span style={{ ...font(13, 400, '#1c1c1c') }}>No units signed off</span>
-          </div>
-          <div>
-            <span style={{ ...font(12, 600, '#1c1c1c') }}>Attachments: </span>
-            <span style={{ ...font(13, 400, '#1c1c1c') }}>Nothing is attached</span>
+      {/* Unit selector bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
+        background: '#f8f9fa', borderRadius: 10, marginBottom: 20,
+        border: '1px solid rgba(28,28,28,0.08)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={font(13, 500)}>Unit: {selectedUnit}</span>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={selectedUnit}
+              onChange={e => setSelectedUnit(Number(e.target.value))}
+              style={{ padding: '3px 24px 3px 8px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: 6, ...font(12), background: '#fff', appearance: 'none', cursor: 'pointer' }}
+            >
+              {UNITS.map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+            </select>
+            <img src={iconCaret} width={10} height={10} alt="" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
           </div>
         </div>
+        <button
+          onClick={() => router.push(`/progress-review/${UNITS[selectedUnit - 1]?.id ?? 'u1'}`)}
+          style={{ ...font(12, 500, '#6366f1'), background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          View more
+        </button>
       </div>
 
-      {/* Feedback & Comments Card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
-        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ ...font(15, 700, '#1c1c1c') }}>Feedback & Comments</span>
-        </div>
-        <div style={{ padding: '16px 20px' }}>
-          <div style={{ ...font(12, 400, 'rgba(28,28,28,0.6)'), marginBottom: '8px' }}>From: Tahmidul Hassan (Trainer) on 10/02/2025 19:49 To: John doe (Learner) Unread</div>
-          <div style={{ ...font(13, 400, '#1c1c1c'), marginBottom: '16px' }}>Good job</div>
-
-          <textarea placeholder="Add your feedback..." style={{ width: '100%', minHeight: '80px', boxSizing: 'border-box', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '12px', backgroundColor: '#fff', ...font(14, 400, 'rgba(28,28,28,0.3)'), outline: 'none', resize: 'none', marginBottom: '12px' }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-            <button style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', ...font(14, 600, '#fff') }}>Save</button>
-            <button style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', ...font(14, 600, '#fff') }}>Save & Quit</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Declarations Card */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
-        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', paddingLeft: '20px', paddingRight: '20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ ...font(15, 700, '#1c1c1c') }}>Declarations</span>
-        </div>
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {[
-            { name: 'John Doe (Learner)', date: '2025/03/03', checked: true },
-            { name: 'Trainer', date: '2025/03/04', checked: true },
-            { name: 'Employer', date: '', checked: false },
-            { name: 'External Quality Assurer', date: '', checked: false },
-          ].map((sig, i) => (
-            <div key={i} style={{ backgroundColor: 'rgba(28,28,28,0.04)', border: '1px solid rgba(28,28,28,0.08)', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1 }}>
-                <input type="checkbox" checked={sig.checked} readOnly style={{ width: '15px', height: '15px', accentColor: '#1c1c1c', cursor: 'pointer', marginTop: '2px', flexShrink: 0 }} />
-                <div>
-                  <div style={{ ...font(13, 600, '#1c1c1c'), marginBottom: '4px' }}>Signature</div>
-                  <div style={{ ...font(12, 400, 'rgba(28,28,28,0.5)', { fontStyle: 'italic' }) }}>I agree that the information provided here is an accurate account of what has taken place.</div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' as const, flexShrink: 0, marginLeft: '16px' }}>
-                <div style={{ ...font(13, 400, '#1c1c1c') }}>{sig.name}</div>
-                {sig.date && <div style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), marginTop: '2px' }}>{sig.date}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Cancel Button */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px', ...font(14, 600, '#1c1c1c') }}>Cancel</button>
+      {/* Unit cards grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {UNITS.map(unit => (
+          <UnitCard key={unit.id} unit={unit} onClick={() => router.push(`/progress-review/${unit.id}`)} />
+        ))}
       </div>
     </div>
   )
+}
+
+export default function Page() {
+  return <Suspense><ProgressReviewInner /></Suspense>
 }
