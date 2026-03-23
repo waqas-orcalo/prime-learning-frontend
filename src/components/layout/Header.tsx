@@ -47,10 +47,20 @@ function BellIcon() {
   )
 }
 
+const STATUS_OPTIONS = [
+  { label: 'Active',          dot: '#22c55e' },
+  { label: 'Away',            dot: '#f59e0b' },
+  { label: 'Busy',            dot: '#ef4444' },
+  { label: 'Do not disturb',  dot: '#ef4444' },
+  { label: 'Offline',         dot: '#9ca3af' },
+]
+
 export default function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [showStatusPicker, setShowStatusPicker] = useState(false)
+  const [currentStatus, setCurrentStatus] = useState('Active')
   const headerRef = useRef<HTMLDivElement>(null)
 
   const crumbs = BREADCRUMB_MAP[pathname] ?? ['Dashboards']
@@ -119,7 +129,7 @@ export default function Header() {
           <button
             onClick={() => toggle('tasks')}
             style={{
-              width: '36px', height: '36px', borderRadius: '10px',
+              width: '28px', height: '28px', borderRadius: '8px',
               border: 'none', cursor: 'pointer',
               backgroundColor: openDropdown === 'tasks' ? 'rgba(28,28,28,0.08)' : 'transparent',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -127,6 +137,16 @@ export default function Header() {
           >
             <ClipboardIcon />
           </button>
+          {/* Badge: 5 */}
+          <div style={{
+            position: 'absolute', top: '-2px', right: '-4px',
+            width: '14px', height: '14px', borderRadius: '7px',
+            backgroundColor: '#ff4747',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>5</span>
+          </div>
           {openDropdown === 'tasks' && (
             <div style={{
               position: 'absolute', top: '44px', right: '0',
@@ -159,7 +179,7 @@ export default function Header() {
           <button
             onClick={() => toggle('messages')}
             style={{
-              width: '36px', height: '36px', borderRadius: '10px',
+              width: '28px', height: '28px', borderRadius: '8px',
               border: 'none', cursor: 'pointer',
               backgroundColor: openDropdown === 'messages' ? 'rgba(28,28,28,0.08)' : 'transparent',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -167,6 +187,16 @@ export default function Header() {
           >
             <BellIcon />
           </button>
+          {/* Badge: 3 */}
+          <div style={{
+            position: 'absolute', top: '-2px', right: '-4px',
+            width: '14px', height: '14px', borderRadius: '7px',
+            backgroundColor: '#ff4747',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>3</span>
+          </div>
           {openDropdown === 'messages' && (
             <div style={{
               position: 'absolute', top: '44px', right: '0',
@@ -243,16 +273,101 @@ export default function Header() {
             border: '1px solid rgba(28,28,28,0.1)',
             width: '220px', zIndex: 200, overflow: 'hidden',
           }}>
-            {['Set Status', 'My Profile', 'Email preference', 'My Activity', 'User Guide', 'System Announcements'].map((item, i) => (
+            {/* Set Status — expands inline */}
+            <div>
               <div
-                key={i}
-                style={{ padding: '10px 16px', borderBottom: i < 5 ? '1px solid rgba(28,28,28,0.06)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                onClick={() => { if (item === 'My Profile') router.push('/my-account') }}
+                onClick={() => setShowStatusPicker(p => !p)}
+                style={{
+                  padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  backgroundColor: showStatusPicker ? 'rgba(28,28,28,0.03)' : 'transparent',
+                }}
               >
-                <span style={{ ...font(13, 400) }}>{item}</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    backgroundColor: STATUS_OPTIONS.find(s => s.label === currentStatus)?.dot ?? '#22c55e',
+                    flexShrink: 0,
+                    display: 'inline-block',
+                  }} />
+                  <span style={{ ...font(13, 400) }}>Set Status</span>
+                  <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)') }}>({currentStatus})</span>
+                </div>
+                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px', transform: showStatusPicker ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s' }}>›</span>
               </div>
-            ))}
+              {showStatusPicker && (
+                <div style={{ backgroundColor: 'rgba(28,28,28,0.02)', borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
+                  {STATUS_OPTIONS.map(s => (
+                    <div
+                      key={s.label}
+                      onClick={() => { setCurrentStatus(s.label); setShowStatusPicker(false) }}
+                      style={{
+                        padding: '8px 16px 8px 28px',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: currentStatus === s.label ? 'rgba(28,28,28,0.05)' : 'transparent',
+                      }}
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s.dot, flexShrink: 0, display: 'inline-block' }} />
+                      <span style={{ ...font(13, currentStatus === s.label ? 600 : 400) }}>{s.label}</span>
+                      {currentStatus === s.label && (
+                        <svg style={{ marginLeft: 'auto' }} width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="#1c1c1c" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* My Profile */}
+            <div
+              onClick={() => { router.push('/profile'); setOpenDropdown(null); setShowStatusPicker(false) }}
+              style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
+              <span style={{ ...font(13, 400) }}>My Profile</span>
+              <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+            </div>
+
+            {/* Email preference */}
+            <div
+              onClick={() => { router.push('/my-account'); setOpenDropdown(null); setShowStatusPicker(false) }}
+              style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
+              <span style={{ ...font(13, 400) }}>Email preference</span>
+              <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+            </div>
+
+            {/* My Activity */}
+            <div
+              onClick={() => { router.push('/activity-log'); setOpenDropdown(null); setShowStatusPicker(false) }}
+              style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
+              <span style={{ ...font(13, 400) }}>My Activity</span>
+              <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+            </div>
+
+            {/* User Guide */}
+            <div
+              onClick={() => { router.push('/help'); setOpenDropdown(null); setShowStatusPicker(false) }}
+              style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
+              <span style={{ ...font(13, 400) }}>User Guide</span>
+              <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+            </div>
+
+            {/* System Announcements */}
+            <div
+              onClick={() => { router.push('/dashboard'); setOpenDropdown(null); setShowStatusPicker(false) }}
+              style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+            >
+              <span style={{ ...font(13, 400) }}>System Announcements</span>
+              <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+            </div>
+
+            {/* Sign Out */}
             <div style={{ padding: '8px', borderTop: '1px solid rgba(28,28,28,0.08)' }}>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
