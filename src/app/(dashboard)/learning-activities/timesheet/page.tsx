@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { apiFetch } from '@/lib/api-client'
 
@@ -21,6 +21,56 @@ const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSPro
 const CATEGORIES = ['Classroom Delivery', 'Competition', 'Learning Activity (Assignment)', 'Workshop', 'E-Learning', 'Observation', 'Mentoring', 'Self-Directed Study', 'Online Course']
 const PER_PAGE_OPTIONS = [10, 25, 50, 100]
 
+/* ── category helpers ── */
+function mapCategoryToEnum(label: string): string {
+  const map: Record<string, string> = {
+    'Classroom Delivery': 'CLASSROOM_DELIVERY',
+    'Competition': 'COMPETITION',
+    'Learning Activity (Assignment)': 'LEARNING_ACTIVITY',
+    'Workshop': 'WORKSHOP',
+    'E-Learning': 'E_LEARNING',
+    'Observation': 'OBSERVATION',
+    'Mentoring': 'MENTORING',
+    'Self-Directed Study': 'SELF_DIRECTED_STUDY',
+    'Online Course': 'ONLINE_COURSE',
+  }
+  return map[label] || label.toUpperCase().replace(/ /g, '_')
+}
+
+function mapEnumToCategory(val: string): string {
+  const map: Record<string, string> = {
+    'CLASSROOM_DELIVERY': 'Classroom Delivery',
+    'COMPETITION': 'Competition',
+    'LEARNING_ACTIVITY': 'Learning Activity (Assignment)',
+    'WORKSHOP': 'Workshop',
+    'E_LEARNING': 'E-Learning',
+    'OBSERVATION': 'Observation',
+    'MENTORING': 'Mentoring',
+    'SELF_DIRECTED_STUDY': 'Self-Directed Study',
+    'ONLINE_COURSE': 'Online Course',
+  }
+  return map[val] || val.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')
+}
+
+/* strip ISO time part → "2025-01-07" */
+function toDateStr(val: string | undefined): string {
+  if (!val) return ''
+  return val.substring(0, 10)
+}
+
+function fmtDate(iso: string) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.substring(0, 10).split('-')
+  return `${d}/${m}/${y.slice(2)}`
+}
+
+function fmtMinutes(mins: number) {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h === 0) return `${m}m`
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
 interface TimesheetEntry {
   id: string
   spentBy: string
@@ -31,28 +81,6 @@ interface TimesheetEntry {
   description: string
   timeMinutes: number
   offJob: boolean
-}
-
-const SEED_ENTRIES: TimesheetEntry[] = [
-  { id: '1', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'Classroom Delivery', dateFrom: '2025-02-07', dateTo: '2025-02-08', description: 'Lorem ipsum is a dummy text commonly used in graphic design', timeMinutes: 2040, offJob: true },
-  { id: '2', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'Learning Activity (Assignment)', dateFrom: '2025-02-07', dateTo: '2025-02-08', description: 'UI UX Design review session', timeMinutes: 2040, offJob: true },
-  { id: '3', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'Competition', dateFrom: '2025-02-07', dateTo: '2025-02-08', description: 'Annual skills competition preparation', timeMinutes: 2040, offJob: true },
-  { id: '4', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'Classroom Delivery', dateFrom: '2025-02-10', dateTo: '2025-02-10', description: 'UI Design fundamentals', timeMinutes: 480, offJob: false },
-  { id: '5', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'E-Learning', dateFrom: '2025-01-15', dateTo: '2025-01-15', description: 'Data Protection & GDPR online course', timeMinutes: 45, offJob: true },
-  { id: '6', spentBy: 'John Doe', recordedBy: 'John Doe', category: 'Workshop', dateFrom: '2025-01-20', dateTo: '2025-01-20', description: 'Business communication workshop', timeMinutes: 120, offJob: false },
-]
-
-function fmtDate(iso: string) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  return `${d}/${m}/${y.slice(2)}`
-}
-
-function fmtMinutes(mins: number) {
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  if (h === 0) return `${m}m`
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
 interface EntryFormState {
@@ -66,6 +94,7 @@ interface EntryFormState {
 
 const EMPTY_FORM: EntryFormState = { category: '', dateFrom: '', dateTo: '', description: '', timeMinutes: '', offJob: false }
 
+/* ── Add/Edit Modal ── */
 function EntryModal({ entry, onSave, onClose }: {
   entry?: TimesheetEntry | null
   onSave: (data: EntryFormState) => void
@@ -202,11 +231,17 @@ function EntryModal({ entry, onSave, onClose }: {
   )
 }
 
-export default function TimesheetPage() {
+/* ── Main page (inner, uses useSearchParams) ── */
+function TimesheetPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const activityId = searchParams.get('id') || ''
   const { data: session } = useSession()
   const token = (session?.user as any)?.accessToken
-  const [entries, setEntries] = useState<TimesheetEntry[]>(SEED_ENTRIES)
+
+  const [entries, setEntries] = useState<TimesheetEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activityTitle, setActivityTitle] = useState('Loading…')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const [appliedFrom, setAppliedFrom] = useState('')
@@ -215,66 +250,122 @@ export default function TimesheetPage() {
   const [perPage, setPerPage] = useState(50)
   const [perPageOpen, setPerPageOpen] = useState(false)
   const [pageOpen, setPageOpen] = useState(false)
-  const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null | undefined>(undefined) // undefined = closed, null = new
-  const [activityTitle, setActivityTitle] = useState('Learning Activity')
+  const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null | undefined>(undefined)
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('currentActivity')
-      if (stored) {
-        const act = JSON.parse(stored)
-        setActivityTitle(act.title || 'Learning Activity')
+  /* ── load entries from API ── */
+  const loadEntries = useCallback(async () => {
+    if (!token) return
+    setLoading(true)
+    try {
+      // Load activity title
+      if (activityId) {
+        try {
+          const actResp = await apiFetch<any>(`/learning-activities/${activityId}`, token)
+          setActivityTitle(actResp.data?.title || 'Learning Activity')
+        } catch { /* ignore */ }
+      } else {
+        setActivityTitle('All Timesheets')
       }
-    }
-  }, [])
 
-  // Load timesheets from API
-  useEffect(() => {
-    const loadTimesheets = async () => {
+      // Load entries — scoped to activity if id present, else all
+      const url = activityId
+        ? `/learning-activities/timesheet/activity/${activityId}`
+        : `/learning-activities/timesheet?limit=200`
+
+      const resp = await apiFetch<any>(url, token)
+
+      // Activity-scoped endpoint returns successResponse (array in data)
+      // Paginated endpoint returns paginatedResponse (array in data directly)
+      const raw: any[] = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? [])
+
+      const mapped: TimesheetEntry[] = raw.map((t: any) => ({
+        id: t._id,
+        spentBy: t.spentBy?.name || t.spentBy || 'John Doe',
+        recordedBy: t.recordedBy?.name || t.recordedBy || 'John Doe',
+        category: mapEnumToCategory(t.category || ''),
+        dateFrom: toDateStr(t.dateFrom),
+        dateTo: toDateStr(t.dateTo),
+        description: t.description || '',
+        timeMinutes: t.timeMinutes || 0,
+        offJob: t.offJob || false,
+      }))
+      setEntries(mapped)
+    } catch (err) {
+      console.error('Failed to load timesheets:', err)
+      setEntries([])
+    } finally {
+      setLoading(false)
+    }
+  }, [token, activityId])
+
+  useEffect(() => { loadEntries() }, [loadEntries])
+
+  /* ── create / update ── */
+  const handleSave = async (form: EntryFormState) => {
+    const body: any = {
+      category: mapCategoryToEnum(form.category),
+      dateFrom: form.dateFrom,
+      dateTo: form.dateTo,
+      description: form.description,
+      timeMinutes: Number(form.timeMinutes),
+      offJob: form.offJob,
+    }
+    if (activityId) body.learningActivityId = activityId
+
+    if (editingEntry === null) {
+      // Create
       try {
-        if (!token) return
-        const response = await apiFetch<any>('/learning-activities/timesheet?limit=100', token)
-        const loaded = (response.data.data || []).map((t: any) => ({
+        const response = await apiFetch<any>('/learning-activities/timesheet', token, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })
+        const t = response.data
+        const newEntry: TimesheetEntry = {
           id: t._id,
           spentBy: 'John Doe',
           recordedBy: 'John Doe',
-          category: formatCategory(t.category),
-          dateFrom: t.dateFrom,
-          dateTo: t.dateTo,
-          description: t.description,
-          timeMinutes: t.timeMinutes,
-          offJob: t.offJob,
-        }))
-        if (loaded.length > 0) setEntries(loaded)
+          category: form.category,
+          dateFrom: toDateStr(t.dateFrom) || form.dateFrom,
+          dateTo: toDateStr(t.dateTo) || form.dateTo,
+          description: form.description,
+          timeMinutes: Number(form.timeMinutes),
+          offJob: form.offJob,
+        }
+        setEntries(prev => [newEntry, ...prev])
       } catch (err) {
-        console.error('Failed to load timesheets:', err)
+        console.error('Failed to create timesheet entry:', err)
+      }
+    } else if (editingEntry) {
+      // Update
+      try {
+        await apiFetch<any>(`/learning-activities/timesheet/${editingEntry.id}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        })
+        setEntries(prev => prev.map(e => e.id === editingEntry.id
+          ? { ...e, category: form.category, dateFrom: form.dateFrom, dateTo: form.dateTo, description: form.description, timeMinutes: Number(form.timeMinutes), offJob: form.offJob }
+          : e
+        ))
+      } catch (err) {
+        console.error('Failed to update timesheet entry:', err)
       }
     }
-    loadTimesheets()
-  }, [token])
-
-  function formatCategory(cat: string): string {
-    return cat
-      .split('_')
-      .map(w => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(' ')
+    setEditingEntry(undefined)
+    setPage(1)
   }
 
-  function mapCategoryToEnum(label: string): string {
-    const map: Record<string, string> = {
-      'Classroom Delivery': 'CLASSROOM_DELIVERY',
-      'Competition': 'COMPETITION',
-      'Learning Activity (Assignment)': 'LEARNING_ACTIVITY',
-      'Workshop': 'WORKSHOP',
-      'E-Learning': 'E_LEARNING',
-      'Observation': 'OBSERVATION',
-      'Mentoring': 'MENTORING',
-      'Self-Directed Study': 'SELF_DIRECTED_STUDY',
-      'Online Course': 'ONLINE_COURSE',
+  /* ── delete ── */
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this timesheet entry?')) return
+    try {
+      await apiFetch<any>(`/learning-activities/timesheet/${id}`, token, { method: 'DELETE' })
+      setEntries(prev => prev.filter(e => e.id !== id))
+    } catch (err) {
+      console.error('Failed to delete timesheet entry:', err)
     }
-    return map[label] || label
   }
 
+  /* ── derived values ── */
   const filteredEntries = useMemo(() => {
     if (!appliedFrom && !appliedTo) return entries
     return entries.filter(e => {
@@ -286,6 +377,7 @@ export default function TimesheetPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / perPage))
   const pagedEntries = filteredEntries.slice((page - 1) * perPage, page * perPage)
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1)
 
   const summaryData = useMemo(() => {
     const map: Record<string, { offJob: number; total: number }> = {}
@@ -299,101 +391,6 @@ export default function TimesheetPage() {
 
   const totalOffJob = filteredEntries.filter(e => e.offJob).reduce((s, e) => s + e.timeMinutes, 0)
   const totalAll = filteredEntries.reduce((s, e) => s + e.timeMinutes, 0)
-
-  const handleSave = async (form: EntryFormState) => {
-    if (editingEntry === null) {
-      // new
-      try {
-        if (token) {
-          const response = await apiFetch<any>(
-            '/learning-activities/timesheet',
-            token,
-            {
-              method: 'POST',
-              body: JSON.stringify({
-                category: mapCategoryToEnum(form.category),
-                dateFrom: form.dateFrom,
-                dateTo: form.dateTo,
-                description: form.description,
-                timeMinutes: Number(form.timeMinutes),
-                offJob: form.offJob,
-              }),
-            }
-          )
-          const newEntry: TimesheetEntry = {
-            id: response.data._id,
-            spentBy: 'John Doe',
-            recordedBy: 'John Doe',
-            category: form.category,
-            dateFrom: form.dateFrom,
-            dateTo: form.dateTo,
-            description: form.description,
-            timeMinutes: Number(form.timeMinutes),
-            offJob: form.offJob,
-          }
-          setEntries(prev => [newEntry, ...prev])
-        } else {
-          // Fallback to local
-          const newEntry: TimesheetEntry = {
-            id: String(Date.now()),
-            spentBy: 'John Doe',
-            recordedBy: 'John Doe',
-            category: form.category,
-            dateFrom: form.dateFrom,
-            dateTo: form.dateTo,
-            description: form.description,
-            timeMinutes: Number(form.timeMinutes),
-            offJob: form.offJob,
-          }
-          setEntries(prev => [newEntry, ...prev])
-        }
-      } catch (err) {
-        console.error('Failed to save timesheet:', err)
-      }
-    } else if (editingEntry) {
-      try {
-        if (token) {
-          await apiFetch<any>(
-            `/learning-activities/timesheet/${editingEntry.id}`,
-            token,
-            {
-              method: 'PATCH',
-              body: JSON.stringify({
-                category: mapCategoryToEnum(form.category),
-                dateFrom: form.dateFrom,
-                dateTo: form.dateTo,
-                description: form.description,
-                timeMinutes: Number(form.timeMinutes),
-                offJob: form.offJob,
-              }),
-            }
-          )
-        }
-        setEntries(prev => prev.map(e => e.id === editingEntry.id ? { ...e, category: form.category, dateFrom: form.dateFrom, dateTo: form.dateTo, description: form.description, timeMinutes: Number(form.timeMinutes), offJob: form.offJob } : e))
-      } catch (err) {
-        console.error('Failed to update timesheet:', err)
-      }
-    }
-    setEditingEntry(undefined)
-    setPage(1)
-  }
-
-  const handleDelete = async (id: string) => {
-    try {
-      if (token) {
-        await apiFetch<any>(
-          `/learning-activities/timesheet/${id}`,
-          token,
-          { method: 'DELETE' }
-        )
-      }
-      setEntries(prev => prev.filter(e => e.id !== id))
-    } catch (err) {
-      console.error('Failed to delete timesheet:', err)
-    }
-  }
-
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1)
 
   return (
     <div>
@@ -456,7 +453,7 @@ export default function TimesheetPage() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary by Category */}
       <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', marginBottom: '16px', overflow: 'hidden' }}>
         <div style={{ backgroundColor: 'rgba(28,28,28,0.03)', padding: '12px 20px', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
           <span style={font(15, 700)}>Summary by Category</span>
@@ -490,7 +487,9 @@ export default function TimesheetPage() {
         </div>
 
         <div style={{ padding: '0 20px 20px' }}>
-          {summaryData.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', ...font(13, 400, 'rgba(28,28,28,0.4)') }}>Loading…</div>
+          ) : summaryData.length === 0 ? (
             <div style={{ padding: '20px 0', textAlign: 'center', ...font(13, 400, 'rgba(28,28,28,0.4)') }}>No data for this period.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -522,7 +521,7 @@ export default function TimesheetPage() {
 
       {/* Entries Table */}
       <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', overflow: 'hidden' }}>
-        {/* Entries header with pagination */}
+        {/* Header with pagination */}
         <div style={{ backgroundColor: 'rgba(28,28,28,0.03)', padding: '12px 20px', borderBottom: '1px solid rgba(28,28,28,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <span style={font(15, 700)}>Entries</span>
@@ -554,7 +553,6 @@ export default function TimesheetPage() {
               </div>
               <span style={font(13, 400, 'rgba(28,28,28,0.5)')}>of {totalPages}</span>
             </div>
-
             {/* Per page */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={font(13, 400, 'rgba(28,28,28,0.6)')}>Per page:</span>
@@ -583,8 +581,10 @@ export default function TimesheetPage() {
         </div>
 
         <div style={{ padding: '0 20px 24px' }}>
-          {pagedEntries.length === 0 ? (
-            <div style={{ padding: '32px 0', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>No entries found.</div>
+          {loading ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>Loading entries…</div>
+          ) : pagedEntries.length === 0 ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>No entries found. Click "Add Entry" to get started.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -654,5 +654,13 @@ export default function TimesheetPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function TimesheetPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '32px', textAlign: 'center', fontFamily: 'Inter, sans-serif', color: 'rgba(28,28,28,0.4)' }}>Loading…</div>}>
+      <TimesheetPageInner />
+    </Suspense>
   )
 }

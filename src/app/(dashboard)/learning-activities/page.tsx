@@ -177,7 +177,7 @@ export default function LearningActivitiesPage() {
       const act = activities.find(a => a.id === id)
       if (act) localStorage.setItem('currentActivity', JSON.stringify(act))
     }
-    router.push(`/learning-activities/evidence?id=${id}`)
+    router.push(`/learning-activities/activity?id=${id}`)
   }
 
   /* pagination helpers */

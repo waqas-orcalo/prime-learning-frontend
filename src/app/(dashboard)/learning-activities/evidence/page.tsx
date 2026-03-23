@@ -326,7 +326,7 @@ function TabEvidence({ data, onChange, activityId, token }: { data: { content: s
 }
 
 /* ── Tab: Feedback ── */
-function TabFeedback({ data, onChange, activityId, token }: { data: { content: string; toolbarActive: string[] }; onChange: (d: any) => void; activityId: string; token: string | undefined }) {
+function TabFeedback({ data, onChange, activityId, token }: { data: { content: string; toolbarActive: string[]; feedbackId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -334,18 +334,25 @@ function TabFeedback({ data, onChange, activityId, token }: { data: { content: s
     setSaving(true)
     try {
       if (token && activityId && activityId !== 'default') {
-        await apiFetch<any>(
-          '/learning-activities/feedback-comments',
-          token,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              learningActivityId: activityId,
-              content: data.content,
-              type: 'FEEDBACK',
-            }),
-          }
-        )
+        if (data.feedbackId) {
+          // Update existing record
+          await apiFetch<any>(
+            `/learning-activities/feedback-comments/${data.feedbackId}`,
+            token,
+            { method: 'PATCH', body: JSON.stringify({ content: data.content }) }
+          )
+        } else {
+          // Create new record
+          const res = await apiFetch<any>(
+            '/learning-activities/feedback-comments',
+            token,
+            {
+              method: 'POST',
+              body: JSON.stringify({ learningActivityId: activityId, content: data.content, type: 'FEEDBACK' }),
+            }
+          )
+          onChange({ ...data, feedbackId: res.data?._id || '' })
+        }
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -373,7 +380,7 @@ function TabFeedback({ data, onChange, activityId, token }: { data: { content: s
 }
 
 /* ── Tab: Visit ── */
-interface VisitData { visitType: string; travelTime: string; notes: string }
+interface VisitData { visitType: string; travelTime: string; notes: string; visitId: string }
 function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onChange: (d: VisitData) => void; activityId: string; token: string | undefined }) {
   const [typeOpen, setTypeOpen] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -383,24 +390,28 @@ function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onCh
     setSaving(true)
     try {
       if (token && activityId && activityId !== 'default') {
-        await apiFetch<any>(
-          '/learning-activities/visit',
-          token,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              learningActivityId: activityId,
-              visitType: mapVisitTypeToEnum(data.visitType),
-              visitDate: new Date().toISOString().split('T')[0],
-              durationMinutes: 0,
-              travelTimeMinutes: Number(data.travelTime) || 0,
-              transportMode: 'CAR',
-              startLocation: '',
-              endLocation: '',
-              notes: data.notes,
-            }),
-          }
-        )
+        const body = {
+          visitType: mapVisitTypeToEnum(data.visitType),
+          visitDate: new Date().toISOString().split('T')[0],
+          travelTimeMinutes: Number(data.travelTime) || 0,
+          notes: data.notes,
+        }
+        if (data.visitId) {
+          // Update existing
+          await apiFetch<any>(
+            `/learning-activities/visit/${data.visitId}`,
+            token,
+            { method: 'PATCH', body: JSON.stringify(body) }
+          )
+        } else {
+          // Create new
+          const res = await apiFetch<any>(
+            '/learning-activities/visit',
+            token,
+            { method: 'POST', body: JSON.stringify({ ...body, learningActivityId: activityId, durationMinutes: 0, transportMode: 'CAR', startLocation: '', endLocation: '' }) }
+          )
+          onChange({ ...data, visitId: res.data?._id || '' })
+        }
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -465,7 +476,7 @@ function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onCh
 }
 
 /* ── Tab: Leaning Journals ── */
-interface JournalData { title: string; category: string; date: string; timeHH: string; timeMM: string; amPm: 'AM' | 'PM'; durationHH: string; durationMM: string; offJob: boolean; onJob: boolean; reflection: string; privacy: string }
+interface JournalData { title: string; category: string; date: string; timeHH: string; timeMM: string; amPm: 'AM' | 'PM'; durationHH: string; durationMM: string; offJob: boolean; onJob: boolean; reflection: string; privacy: string; journalId: string }
 function TabJournals({ data, onChange, activityId, token }: { data: JournalData; onChange: (d: JournalData) => void; activityId: string; token: string | undefined }) {
   const [catOpen, setCatOpen] = useState(false)
   const [privOpen, setPrivOpen] = useState(false)
@@ -477,28 +488,36 @@ function TabJournals({ data, onChange, activityId, token }: { data: JournalData;
     setSaving(true)
     try {
       if (token && activityId && activityId !== 'default') {
-        await apiFetch<any>(
-          '/learning-journals',
-          token,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              learningActivityId: activityId,
-              title: data.title,
-              category: data.category,
-              date: data.date,
-              timeHH: data.timeHH,
-              timeMM: data.timeMM,
-              amPm: data.amPm,
-              durationHH: data.durationHH,
-              durationMM: data.durationMM,
-              offJob: data.offJob,
-              onJob: data.onJob,
-              reflection: data.reflection,
-              privacy: data.privacy,
-            }),
-          }
-        )
+        const body = {
+          title: data.title,
+          category: data.category,
+          date: data.date,
+          timeHH: data.timeHH,
+          timeMM: data.timeMM,
+          amPm: data.amPm,
+          durationHH: data.durationHH,
+          durationMM: data.durationMM,
+          offJob: data.offJob,
+          onJob: data.onJob,
+          reflection: data.reflection,
+          privacy: data.privacy,
+        }
+        if (data.journalId) {
+          // Update existing
+          await apiFetch<any>(
+            `/learning-journals/${data.journalId}`,
+            token,
+            { method: 'PATCH', body: JSON.stringify(body) }
+          )
+        } else {
+          // Create new
+          const res = await apiFetch<any>(
+            '/learning-journals',
+            token,
+            { method: 'POST', body: JSON.stringify({ ...body, learningActivityId: activityId }) }
+          )
+          onChange({ ...data, journalId: res.data?._id || '' })
+        }
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -609,10 +628,29 @@ interface DeclarationData { learner: DeclarationSig; trainer: DeclarationSig; ag
 function TabDeclaration({ data, onChange, activityId, token }: { data: DeclarationData; onChange: (d: DeclarationData) => void; activityId: string; token: string | undefined }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [signingRole, setSigningRole] = useState<'learner' | 'trainer' | null>(null)
 
-  const handleSign = (role: 'learner' | 'trainer') => {
+  const handleSign = async (role: 'learner' | 'trainer') => {
     if (data[role].checked) return
-    onChange({ ...data, [role]: { checked: true, signedAt: new Date().toLocaleDateString('en-GB') } })
+    setSigningRole(role)
+    const now = new Date().toLocaleDateString('en-GB')
+    // Optimistically update UI
+    onChange({ ...data, [role]: { checked: true, signedAt: now } })
+    try {
+      if (token && activityId && activityId !== 'default') {
+        await apiFetch<any>(
+          `/learning-activities/declaration/${activityId}/sign`,
+          token,
+          { method: 'POST', body: JSON.stringify({ role, signature: `Signed by ${role} on ${now}` }) }
+        )
+      }
+    } catch (err) {
+      console.error('Failed to sign declaration:', err)
+      // Revert on error
+      onChange({ ...data, [role]: { checked: false, signedAt: '' } })
+    } finally {
+      setSigningRole(null)
+    }
   }
 
   const handleSave = async () => {
@@ -640,6 +678,7 @@ function TabDeclaration({ data, onChange, activityId, token }: { data: Declarati
       setSaving(false)
     }
   }
+
   return (
     <div style={{ padding: '20px' }}>
       <div style={{ ...font(16, 700), marginBottom: '10px' }}>Declaration &amp; Signatures</div>
@@ -647,9 +686,9 @@ function TabDeclaration({ data, onChange, activityId, token }: { data: Declarati
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         {(['learner', 'trainer'] as const).map(role => (
-          <div key={role} style={{ backgroundColor: 'rgba(28,28,28,0.04)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '16px' }}>
+          <div key={role} style={{ backgroundColor: 'rgba(28,28,28,0.04)', border: `1px solid ${data[role].checked ? '#22c55e' : 'rgba(28,28,28,0.1)'}`, borderRadius: '8px', padding: '16px', transition: 'border-color .2s' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <input type="checkbox" checked={data[role].checked} onChange={() => handleSign(role)} style={{ width: '15px', height: '15px', accentColor: '#1c1c1c', cursor: 'pointer' }} />
+              <input type="checkbox" checked={data[role].checked} onChange={() => handleSign(role)} style={{ width: '15px', height: '15px', accentColor: '#22c55e', cursor: data[role].checked ? 'default' : 'pointer' }} readOnly={data[role].checked} />
               <span style={{ ...font(13, 600) }}>Signature — {role === 'learner' ? 'Learner' : 'Trainer'}</span>
             </div>
             <p style={{ ...font(12, 400, 'rgba(28,28,28,0.55)', { fontStyle: 'italic' }), marginBottom: '12px', lineHeight: 1.5 }}>I agree that the information provided here is an accurate account of what has taken place.</p>
@@ -657,7 +696,13 @@ function TabDeclaration({ data, onChange, activityId, token }: { data: Declarati
               <span style={{ ...font(13) }}>{role === 'learner' ? 'John Doe (Learner)' : 'Trainer'}</span>
               {data[role].signedAt
                 ? <span style={{ ...font(12, 500, '#22c55e') }}>✓ Signed {data[role].signedAt}</span>
-                : <button onClick={() => handleSign(role)} style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', ...font(12, 500, '#fff') }}>Click to sign</button>
+                : <button
+                    onClick={() => handleSign(role)}
+                    disabled={signingRole === role}
+                    style={{ backgroundColor: signingRole === role ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: signingRole === role ? 'not-allowed' : 'pointer', ...font(12, 500, '#fff') }}
+                  >
+                    {signingRole === role ? 'Signing…' : 'Click to sign'}
+                  </button>
               }
             </div>
           </div>
@@ -705,56 +750,112 @@ function EvidencePageInner() {
 
   // Tab data states
   const [evidenceData, setEvidenceData] = useState({ content: '', attachments: [] as Attachment[], toolbarActive: [] as string[], evidenceId: '' })
-  const [feedbackData, setFeedbackData] = useState({ content: '', toolbarActive: [] as string[] })
-  const [visitData, setVisitData] = useState<VisitData>({ visitType: '', travelTime: '', notes: '' })
-  const [journalData, setJournalData] = useState<JournalData>({ title: '', category: '', date: '', timeHH: '', timeMM: '', amPm: 'AM', durationHH: '', durationMM: '', offJob: false, onJob: false, reflection: '', privacy: 'Only Me' })
+  const [feedbackData, setFeedbackData] = useState({ content: '', toolbarActive: [] as string[], feedbackId: '' })
+  const [visitData, setVisitData] = useState<VisitData>({ visitType: '', travelTime: '', notes: '', visitId: '' })
+  const [journalData, setJournalData] = useState<JournalData>({ title: '', category: '', date: '', timeHH: '', timeMM: '', amPm: 'AM', durationHH: '', durationMM: '', offJob: false, onJob: false, reflection: '', privacy: 'Only Me', journalId: '' })
   const [declarationData, setDeclarationData] = useState<DeclarationData>({ learner: { checked: false, signedAt: '' }, trainer: { checked: false, signedAt: '' }, agreed: false })
 
-  // Load activity and criteria on mount
+  // Load activity, criteria and all tab data on mount
   useEffect(() => {
     const load = async () => {
+      if (!token || !activityId || activityId === 'default') return
       try {
-        if (token && activityId && activityId !== 'default') {
-          // Load activity
-          try {
-            const actResp = await apiFetch<any>(
-              `/learning-activities/${activityId}`,
-              token
-            )
-            setActivity(actResp.data)
-          } catch (err) {
-            console.error('Failed to load activity:', err)
-          }
+        // Load activity
+        try {
+          const actResp = await apiFetch<any>(`/learning-activities/${activityId}`, token)
+          setActivity(actResp.data)
+        } catch (err) { console.error('Failed to load activity:', err) }
 
-          // Load criteria master
-          try {
-            const critResp = await apiFetch<any>(
-              '/criteria?limit=100',
-              token
-            )
-            const loaded = (critResp.data.data || []).map((c: any) => ({
-              id: c._id,
-              name: c.name,
-              selected: false,
-              expanded: false,
-            }))
-            if (loaded.length > 0) setCriteria(loaded)
-          } catch (err) {
-            console.error('Failed to load criteria:', err)
-          }
+        // Load criteria master
+        try {
+          const critResp = await apiFetch<any>('/criteria?limit=100', token)
+          const loaded = (critResp.data.data || critResp.data || []).map((c: any) => ({
+            id: c._id,
+            name: c.name,
+            selected: false,
+            expanded: false,
+          }))
+          if (loaded.length > 0) setCriteria(loaded)
+        } catch (err) { console.error('Failed to load criteria:', err) }
 
-          // Load activity's selected criteria
-          try {
-            const actCritResp = await apiFetch<any>(
-              `/criteria/activity/${activityId}`,
-              token
-            )
-            const selectedIds = new Set((actCritResp.data.data || []).map((c: any) => c.criteriaId))
-            setCriteria(prev => prev.map(c => ({ ...c, selected: selectedIds.has(c.id) })))
-          } catch (err) {
-            console.error('Failed to load activity criteria:', err)
+        // Load activity's selected criteria
+        try {
+          const actCritResp = await apiFetch<any>(`/criteria/activity/${activityId}`, token)
+          const selectedIds = new Set((actCritResp.data.data || actCritResp.data || []).map((c: any) => c.criteriaId))
+          setCriteria(prev => prev.map(c => ({ ...c, selected: selectedIds.has(c.id) })))
+        } catch (err) { console.error('Failed to load activity criteria:', err) }
+
+        // Load existing evidence
+        try {
+          const evResp = await apiFetch<any>(`/learning-activities/evidence/activity/${activityId}`, token)
+          const evList: any[] = Array.isArray(evResp.data) ? evResp.data : []
+          if (evList.length > 0) {
+            const first = evList[0]
+            setEvidenceData({ content: first.content || '', attachments: first.files || [], toolbarActive: [], evidenceId: first._id || '' })
           }
-        }
+        } catch (err) { console.error('Failed to load evidence:', err) }
+
+        // Load existing feedback
+        try {
+          const fbResp = await apiFetch<any>(`/learning-activities/feedback-comments/activity/${activityId}`, token)
+          const fbList: any[] = Array.isArray(fbResp.data) ? fbResp.data : []
+          if (fbList.length > 0) {
+            setFeedbackData({ content: fbList[0].content || '', toolbarActive: [], feedbackId: fbList[0]._id || '' })
+          }
+        } catch (err) { console.error('Failed to load feedback:', err) }
+
+        // Load existing visits
+        try {
+          const visResp = await apiFetch<any>(`/learning-activities/visit/activity/${activityId}`, token)
+          const visList: any[] = Array.isArray(visResp.data) ? visResp.data : []
+          if (visList.length > 0) {
+            const v = visList[0]
+            setVisitData({
+              visitType: v.visitType || '',
+              travelTime: String(v.travelTimeMinutes || ''),
+              notes: v.notes || '',
+              visitId: v._id || '',
+            })
+          }
+        } catch (err) { console.error('Failed to load visits:', err) }
+
+        // Load existing journal entries
+        try {
+          const jResp = await apiFetch<any>(`/learning-journals/activity/${activityId}`, token)
+          const jList: any[] = Array.isArray(jResp.data) ? jResp.data : []
+          if (jList.length > 0) {
+            const j = jList[0]
+            setJournalData({
+              title: j.title || '',
+              category: j.category || '',
+              date: j.date || '',
+              timeHH: j.timeHH || '',
+              timeMM: j.timeMM || '',
+              amPm: j.amPm || 'AM',
+              durationHH: j.durationHH || '',
+              durationMM: j.durationMM || '',
+              offJob: j.offJob || false,
+              onJob: j.onJob || false,
+              reflection: j.reflection || '',
+              privacy: j.privacy || 'Only Me',
+              journalId: j._id || '',
+            })
+          }
+        } catch (err) { console.error('Failed to load journals:', err) }
+
+        // Load existing declaration
+        try {
+          const decResp = await apiFetch<any>(`/learning-activities/declaration/${activityId}`, token)
+          const dec = decResp.data
+          if (dec) {
+            setDeclarationData({
+              learner: { checked: dec.learnerAgreed || false, signedAt: dec.learnerSignedAt ? new Date(dec.learnerSignedAt).toLocaleDateString('en-GB') : '' },
+              trainer: { checked: dec.trainerAgreed || false, signedAt: dec.trainerSignedAt ? new Date(dec.trainerSignedAt).toLocaleDateString('en-GB') : '' },
+              agreed: dec.agreedToTerms || false,
+            })
+          }
+        } catch (err) { console.error('Failed to load declaration:', err) }
+
       } catch (err) {
         console.error('Load error:', err)
       }
