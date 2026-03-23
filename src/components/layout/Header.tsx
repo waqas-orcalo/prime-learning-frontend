@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { BREADCRUMB_MAP } from '@/constants/nav'
+import { apiFetch } from '@/lib/api-client'
 
 const FF = "'Inter', sans-serif"
 const font = (size: number, weight = 400, color = '#1c1c1c') => ({
@@ -92,20 +93,69 @@ function ToggleSwitch({ on, onClick }: { on: boolean; onClick: () => void }) {
   )
 }
 
-// ── Set a Status modal — pixel-perfect to Figma node 40000068:39453 ───────────
+// ── Presence / status types ────────────────────────────────────────────────
 const STATUS_OPTS = ['Online', 'Available', 'Busy', 'Out of office'] as const
 type StatusOpt = typeof STATUS_OPTS[number]
 
+const STATUS_DOT: Record<string, string> = {
+  Online: '#22c55e',
+  Available: '#22c55e',
+  Busy: '#ef4444',
+  'Out of office': '#f59e0b',
+}
+
+interface PresenceData {
+  presenceStatus: StatusOpt
+  showOnlineStatus: boolean
+  oooMessage: string
+}
+
+// ── Avatar (initials fallback) ─────────────────────────────────────────────
+function Avatar({ url, name, size = 32 }: { url?: string | null; name?: string; size?: number }) {
+  const initials = name
+    ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?'
+  return (
+    <div style={{
+      width: `${size}px`, height: `${size}px`, borderRadius: '80px',
+      backgroundColor: 'rgba(28,28,28,0.08)',
+      overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {url ? (
+        <img src={url} alt={name ?? 'avatar'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span style={{ fontFamily: FF, fontSize: `${Math.round(size * 0.38)}px`, fontWeight: 600, color: '#1c1c1c' }}>
+          {initials}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function roleLabel(role?: string) {
+  const map: Record<string, string> = {
+    LEARNER: 'Learner', TRAINER: 'Trainer', ORG_ADMIN: 'Admin', SUPER_ADMIN: 'Super Admin',
+  }
+  return role ? (map[role] ?? role) : 'Learner'
+}
+
+// ── Set a Status modal — pixel-perfect to Figma node 40000068:39453 ───────────
 function SetStatusModal({
+  initial,
+  saving,
   onClose,
   onSave,
 }: {
+  initial: PresenceData
+  saving: boolean
   onClose: () => void
-  onSave: (status: StatusOpt, showOnline: boolean, message: string) => void
+  onSave: (data: PresenceData) => void
 }) {
-  const [selected, setSelected] = useState<StatusOpt>('Online')
-  const [showOnline, setShowOnline] = useState(true)
-  const [oooMessage, setOooMessage] = useState('')
+  const [selected, setSelected] = useState<StatusOpt>(initial.presenceStatus)
+  const [showOnline, setShowOnline] = useState(initial.showOnlineStatus)
+  const [oooMessage, setOooMessage] = useState(initial.oooMessage)
 
   return (
     /* Backdrop */
@@ -239,22 +289,23 @@ function SetStatusModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             {/* Save */}
             <button
-              onClick={() => { onSave(selected, showOnline, oooMessage); onClose() }}
+              onClick={() => onSave({ presenceStatus: selected, showOnlineStatus: showOnline, oooMessage })}
+              disabled={saving}
               style={{
-                backgroundColor: '#000',
+                backgroundColor: saving ? '#888' : '#000',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '16px',
                 padding: '0 9px',
                 height: '32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer',
+                cursor: saving ? 'default' : 'pointer',
                 fontFamily: FF, fontSize: '14px', fontWeight: 400,
                 fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1",
                 minWidth: '60px',
               }}
             >
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
             {/* Cancel (Figma typo: "Cancle") */}
             <button
@@ -284,14 +335,41 @@ function SetStatusModal({
 
 // ── Header ────────────────────────────────────────────────────────────────────
 export default function Header() {
-  const pathname = usePathname()
-  const router   = useRouter()
-  const [openDropdown,   setOpenDropdown]   = useState<string | null>(null)
-  const [showSetStatus,  setShowSetStatus]  = useState(false)
-  const [currentStatus,  setCurrentStatus]  = useState<'Online' | 'Available' | 'Busy' | 'Out of office'>('Online')
-  const headerRef = useRef<HTMLDivElement>(null)
+  const pathname  = usePathname()
+  const router    = useRouter()
+  const { data: session } = useSession()
+  const token     = (session?.user as any)?.accessToken as string | undefined
 
-  const crumbs = BREADCRUMB_MAP[pathname] ?? ['Dashboards']
+  const [openDropdown,  setOpenDropdown]  = useState<string | null>(null)
+  const [showSetStatus, setShowSetStatus] = useState(false)
+  const [savingStatus,  setSavingStatus]  = useState(false)
+  const [presence, setPresence] = useState<PresenceData>({
+    presenceStatus: 'Online',
+    showOnlineStatus: true,
+    oooMessage: '',
+  })
+  const [userProfile, setUserProfile] = useState<{
+    firstName?: string; lastName?: string; avatarUrl?: string | null; role?: string
+  } | null>(null)
+
+  const headerRef = useRef<HTMLDivElement>(null)
+  const crumbs    = BREADCRUMB_MAP[pathname] ?? ['Dashboards']
+
+  // Load current user profile + presence once token is available
+  useEffect(() => {
+    if (!token) return
+    apiFetch<any>('/users/me', token)
+      .then(res => {
+        const u = res?.data ?? res
+        setUserProfile({ firstName: u.firstName, lastName: u.lastName, avatarUrl: u.avatarUrl, role: u.role })
+        setPresence({
+          presenceStatus:  (u.presenceStatus as StatusOpt) ?? 'Online',
+          showOnlineStatus: u.showOnlineStatus ?? true,
+          oooMessage:       u.oooMessage ?? '',
+        })
+      })
+      .catch(() => {})
+  }, [token])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -305,17 +383,35 @@ export default function Header() {
 
   const toggle = (name: string) => setOpenDropdown(p => p === name ? null : name)
 
-  const statusDot: Record<string, string> = {
-    Online: '#22c55e', Available: '#22c55e', Busy: '#ef4444', 'Out of office': '#f59e0b',
-  }
+  // Save presence to backend
+  const handleSaveStatus = useCallback(async (data: PresenceData) => {
+    setSavingStatus(true)
+    try {
+      if (token) await apiFetch('/users/me/presence', token, { method: 'PATCH', body: JSON.stringify(data) })
+      setPresence(data)
+    } catch { setPresence(data) }
+    finally { setSavingStatus(false); setShowSetStatus(false) }
+  }, [token])
+
+  // Derive display values: prefer API data, fall back to session
+  const sessionUser  = session?.user as any
+  const displayName  =
+    userProfile?.firstName && userProfile?.lastName
+      ? `${userProfile.firstName} ${userProfile.lastName}`
+      : userProfile?.firstName ?? sessionUser?.name ?? 'User'
+  const displayRole  = roleLabel(userProfile?.role ?? sessionUser?.role)
+  const avatarUrl    = userProfile?.avatarUrl
+  const currentDotColor = STATUS_DOT[presence.presenceStatus] ?? '#22c55e'
 
   return (
     <>
       {/* ── Set a Status modal (portal-style fixed overlay) ── */}
       {showSetStatus && (
         <SetStatusModal
+          initial={presence}
+          saving={savingStatus}
           onClose={() => setShowSetStatus(false)}
-          onSave={(status) => { setCurrentStatus(status) }}
+          onSave={handleSaveStatus}
         />
       )}
 
@@ -419,25 +515,19 @@ export default function Header() {
             onClick={() => toggle('profile')}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer', width: '168px' }}
           >
-            {/* Avatar with status dot */}
+            {/* Avatar with status dot — dynamic from API */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '80px', backgroundColor: 'rgba(28,28,28,0.05)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <circle cx="16" cy="13" r="6" fill="#9291A5"/>
-                  <path d="M4 29c0-6.627 5.373-12 12-12s12 5.373 12 12" fill="#9291A5"/>
-                </svg>
-              </div>
-              {/* Status dot on avatar */}
+              <Avatar url={avatarUrl} name={displayName} size={32} />
               <span style={{
                 position: 'absolute', bottom: '0', right: '0',
                 width: '9px', height: '9px', borderRadius: '50%',
-                backgroundColor: statusDot[currentStatus] ?? '#22c55e',
+                backgroundColor: presence.showOnlineStatus ? currentDotColor : 'rgba(28,28,28,0.2)',
                 border: '1.5px solid #fff',
               }} />
             </div>
             <div style={{ flex: 1, minWidth: 0, textAlign: 'left' as const }}>
-              <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px' }}>John Doe</div>
-              <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>Learner</div>
+              <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{displayName}</div>
+              <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>{displayRole}</div>
             </div>
             <CaretDownIcon />
           </button>
@@ -451,9 +541,9 @@ export default function Header() {
                 style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: statusDot[currentStatus] ?? '#22c55e', display: 'inline-block' }} />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: presence.showOnlineStatus ? currentDotColor : 'rgba(28,28,28,0.2)', display: 'inline-block' }} />
                   <span style={{ ...font(13, 400) }}>Set Status</span>
-                  <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)') }}>({currentStatus})</span>
+                  <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)') }}>({presence.presenceStatus})</span>
                 </div>
                 <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
               </div>

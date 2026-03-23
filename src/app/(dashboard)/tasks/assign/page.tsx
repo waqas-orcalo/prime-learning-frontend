@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { apiFetch } from '@/lib/api-client'
@@ -43,11 +43,60 @@ const card: React.CSSProperties = {
   backgroundColor: '#fff',
   borderRadius: '16px',
   boxShadow: '0px 2px 6px rgba(13,10,44,0.08)',
-  padding: '28px 32px',
+  overflow: 'hidden',
   marginBottom: '20px',
 }
+const cardHeader: React.CSSProperties = {
+  backgroundColor: 'rgba(28,28,28,0.05)',
+  height: '45px',
+  display: 'flex',
+  alignItems: 'center',
+  padding: '0 24px',
+}
+const cardBody: React.CSSProperties = {
+  padding: '24px',
+}
+
+const METHOD_OPTIONS = [
+  'Assignment',
+  'FS Prep',
+  'Gateway',
+  'Observation',
+  'Project',
+  'Questions',
+  'SLC Observation',
+  'Teaching and Learning',
+]
 
 type LearnerResult = { _id: string; firstName: string; lastName: string; email: string; role: string }
+
+function CheckboxIcon({ checked }: { checked: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0 }}>
+      <rect
+        x="1" y="1" width="16" height="16" rx="4"
+        stroke={checked ? '#1c1c1c' : 'rgba(28,28,28,0.25)'}
+        strokeWidth="1.4"
+        fill={checked ? '#1c1c1c' : 'transparent'}
+      />
+      {checked && (
+        <path d="M4.5 9l3 3 6-6" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      )}
+    </svg>
+  )
+}
+
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '4px 0' }}>
+      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(28,28,28,0.08)' }} />
+      <span style={font(11, 500, 'rgba(28,28,28,0.4)', { textTransform: 'uppercase', letterSpacing: '0.6px' })}>
+        {label}
+      </span>
+      <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(28,28,28,0.08)' }} />
+    </div>
+  )
+}
 
 export default function AssignTaskPage() {
   const router = useRouter()
@@ -63,14 +112,24 @@ export default function AssignTaskPage() {
   const [learner, setLearner] = useState<LearnerResult | null>(null)
   const [lookupError, setLookupError] = useState('')
 
-  // Step 2 — task form
+  // Step 2 — task form fields
   const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState('')   // "Details of Planned Assessment"
+  const [reference, setReference] = useState('')
+  const [primaryMethod, setPrimaryMethod] = useState('Assignment')
+  const [secondaryMethods, setSecondaryMethods] = useState<string[]>([])
   const [priority, setPriority] = useState('MEDIUM')
   const [dueDate, setDueDate] = useState('')
+
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  const toggleSecondaryMethod = (method: string) => {
+    setSecondaryMethods(prev =>
+      prev.includes(method) ? prev.filter(m => m !== method) : [...prev, method],
+    )
+  }
 
   const handleFindLearner = async () => {
     if (!emailInput.trim()) return
@@ -103,6 +162,9 @@ export default function AssignTaskPage() {
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || undefined,
+          reference: reference.trim() || undefined,
+          primaryMethod: primaryMethod || undefined,
+          secondaryMethods: secondaryMethods.length > 0 ? secondaryMethods : undefined,
           priority,
           dueDate: dueDate || undefined,
           assignedTo: learner._id,
@@ -116,36 +178,86 @@ export default function AssignTaskPage() {
     }
   }
 
+  const resetForm = () => {
+    setSuccess(false)
+    setStep(1)
+    setTitle('')
+    setDescription('')
+    setReference('')
+    setPrimaryMethod('Assignment')
+    setSecondaryMethods([])
+    setPriority('MEDIUM')
+    setDueDate('')
+    setLearner(null)
+    setEmailInput('')
+  }
+
+  // ── Success state ─────────────────────────────────────────────────────────
   if (success) {
     return (
       <div>
         <h1 style={{ ...font(22, 700), letterSpacing: '-0.44px', marginBottom: '28px' }}>Assign Task</h1>
-        <div style={{ ...card, textAlign: 'center', padding: '48px 32px' }}>
-          {/* Success icon */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M5 14l6 6 12-12" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+        <div style={{ ...card, textAlign: 'center' }}>
+          <div style={{ ...cardBody, padding: '48px 32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <div style={{
+                width: '56px', height: '56px', borderRadius: '50%',
+                backgroundColor: '#dcfce7',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                  <path d="M5 14l6 6 12-12" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
             </div>
-          </div>
-          <div style={font(18, 600, '#1c1c1c', { marginBottom: '8px' })}>Task assigned successfully!</div>
-          <div style={font(14, 400, 'rgba(28,28,28,0.6)', { marginBottom: '28px' })}>
-            "{title}" has been assigned to {learner!.firstName} {learner!.lastName} ({learner!.email})
-          </div>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <button
-              onClick={() => { setSuccess(false); setStep(1); setTitle(''); setDescription(''); setPriority('MEDIUM'); setDueDate(''); setLearner(null); setEmailInput('') }}
-              style={{ ...font(14, 500, '#1c1c1c'), border: '1px solid rgba(28,28,28,0.2)', borderRadius: '8px', padding: '8px 20px', height: '36px', backgroundColor: 'transparent', cursor: 'pointer' }}
-            >
-              Assign Another
-            </button>
-            <button
-              onClick={() => router.push('/tasks')}
-              style={{ ...font(14, 500, '#fff'), backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 20px', height: '36px', cursor: 'pointer' }}
-            >
-              View Tasks
-            </button>
+            <div style={font(18, 600, '#1c1c1c', { marginBottom: '8px' })}>Task assigned successfully!</div>
+            <div style={font(14, 400, 'rgba(28,28,28,0.6)', { marginBottom: '6px' })}>
+              <strong>"{title}"</strong> has been assigned to {learner!.firstName} {learner!.lastName}
+            </div>
+            <div style={font(13, 400, 'rgba(28,28,28,0.45)', { marginBottom: '28px' })}>
+              {learner!.email}
+            </div>
+            {/* Summary chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '28px' }}>
+              {primaryMethod && (
+                <span style={{
+                  backgroundColor: '#e5ecf6', borderRadius: '6px', padding: '4px 10px',
+                  ...font(12, 500, '#1c1c1c'),
+                }}>
+                  {primaryMethod}
+                </span>
+              )}
+              {reference && (
+                <span style={{
+                  backgroundColor: '#f0fdf4', borderRadius: '6px', padding: '4px 10px',
+                  ...font(12, 500, '#16a34a'),
+                }}>
+                  Ref: {reference}
+                </span>
+              )}
+              {dueDate && (
+                <span style={{
+                  backgroundColor: 'rgba(28,28,28,0.06)', borderRadius: '6px', padding: '4px 10px',
+                  ...font(12, 500, '#1c1c1c'),
+                }}>
+                  Due: {new Date(dueDate).toLocaleDateString('en-GB')}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={resetForm}
+                style={{ ...font(14, 500, '#1c1c1c'), border: '1px solid rgba(28,28,28,0.2)', borderRadius: '8px', padding: '8px 20px', height: '36px', backgroundColor: 'transparent', cursor: 'pointer' }}
+              >
+                Assign Another
+              </button>
+              <button
+                onClick={() => router.push('/tasks')}
+                style={{ ...font(14, 500, '#fff'), backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '8px 20px', height: '36px', cursor: 'pointer' }}
+              >
+                View Tasks
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -153,7 +265,7 @@ export default function AssignTaskPage() {
   }
 
   return (
-    <div style={{ maxWidth: '680px' }}>
+    <div style={{ maxWidth: '780px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
         <button
@@ -166,7 +278,7 @@ export default function AssignTaskPage() {
       </div>
 
       {/* Progress steps */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '28px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px' }}>
         {[
           { num: 1, label: 'Find Learner' },
           { num: 2, label: 'Task Details' },
@@ -187,7 +299,9 @@ export default function AssignTaskPage() {
                   <span style={{ ...font(12, 600, step === s.num ? '#fff' : 'rgba(28,28,28,0.5)') }}>{s.num}</span>
                 )}
               </div>
-              <span style={font(14, step === s.num ? 600 : 400, step === s.num ? '#1c1c1c' : 'rgba(28,28,28,0.5)')}>{s.label}</span>
+              <span style={font(14, step === s.num ? 600 : 400, step === s.num ? '#1c1c1c' : 'rgba(28,28,28,0.5)')}>
+                {s.label}
+              </span>
             </div>
             {i < 1 && (
               <div style={{ width: '48px', height: '1px', backgroundColor: step > 1 ? '#22c55e' : 'rgba(28,28,28,0.15)', margin: '0 12px' }} />
@@ -196,82 +310,72 @@ export default function AssignTaskPage() {
         ))}
       </div>
 
-      {/* ── Step 1: Find Learner ── */}
+      {/* ── Step 1: Find Learner ───────────────────────────────────────────── */}
       {step === 1 && (
         <div style={card}>
-          <div style={{ ...font(16, 600), marginBottom: '6px' }}>Find Learner by Email</div>
-          <div style={{ ...font(13, 400, 'rgba(28,28,28,0.5)'), marginBottom: '24px' }}>
-            Enter the learner's email address to assign a task to them.
+          <div style={cardHeader}>
+            <span style={font(16, 600, '#1c1c1c')}>Find Learner by Email</span>
           </div>
-
-          <label style={labelStyle}>Learner Email Address</label>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-            <input
-              type="email"
-              value={emailInput}
-              onChange={e => setEmailInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleFindLearner()}
-              placeholder="e.g. james.miller@prime.com"
-              style={{ ...inputStyle, flex: 1 }}
-              autoFocus
-            />
-            <button
-              onClick={handleFindLearner}
-              disabled={searching || !emailInput.trim()}
-              style={{
-                ...font(14, 500, '#fff'),
-                backgroundColor: searching ? 'rgba(28,28,28,0.4)' : '#1c1c1c',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '0 20px',
-                height: '40px',
-                cursor: searching ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {searching ? 'Searching…' : 'Find Learner'}
-            </button>
-          </div>
-
-          {lookupError && (
-            <div style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '8px',
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.4"/>
-                <path d="M8 5v3.5" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round"/>
-                <circle cx="8" cy="11" r="0.8" fill="#ef4444"/>
-              </svg>
-              <span style={font(13, 400, '#dc2626')}>{lookupError}</span>
+          <div style={cardBody}>
+            <div style={{ ...font(13, 400, 'rgba(28,28,28,0.5)'), marginBottom: '24px' }}>
+              Enter the learner's email address to assign a task to them.
             </div>
-          )}
+            <label style={labelStyle}>Learner Email Address</label>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleFindLearner()}
+                placeholder="e.g. james.miller@prime.com"
+                style={{ ...inputStyle, flex: 1 }}
+                autoFocus
+              />
+              <button
+                onClick={handleFindLearner}
+                disabled={searching || !emailInput.trim()}
+                style={{
+                  ...font(14, 500, '#fff'),
+                  backgroundColor: searching ? 'rgba(28,28,28,0.4)' : '#1c1c1c',
+                  border: 'none', borderRadius: '8px',
+                  padding: '0 20px', height: '40px',
+                  cursor: searching ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {searching ? 'Searching…' : 'Find Learner'}
+              </button>
+            </div>
+            {lookupError && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.4"/>
+                  <path d="M8 5v3.5" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round"/>
+                  <circle cx="8" cy="11" r="0.8" fill="#ef4444"/>
+                </svg>
+                <span style={font(13, 400, '#dc2626')}>{lookupError}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Step 2: Task Form ── */}
+      {/* ── Step 2: Task Details ───────────────────────────────────────────── */}
       {step === 2 && learner && (
         <>
           {/* Learner info banner */}
           <div style={{
             ...card,
-            padding: '16px 20px',
-            marginBottom: '16px',
-            backgroundColor: '#f0fdf4',
+            boxShadow: 'none',
             border: '1px solid #bbf7d0',
+            backgroundColor: '#f0fdf4',
+            marginBottom: '16px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
                 width: '40px', height: '40px', borderRadius: '50%',
                 backgroundColor: '#1c1c1c',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 <span style={font(16, 600, '#fff')}>{learner.firstName[0].toUpperCase()}</span>
               </div>
@@ -288,17 +392,18 @@ export default function AssignTaskPage() {
             </div>
           </div>
 
-          {/* Task form card */}
+          {/* ── Task Overview card (matches learner view) ─────────────────── */}
           <div style={card}>
-            <div style={{ ...font(16, 600), marginBottom: '6px' }}>Task Details</div>
-            <div style={{ ...font(13, 400, 'rgba(28,28,28,0.5)'), marginBottom: '24px' }}>
-              Fill in the task details to assign to this learner.
+            <div style={cardHeader}>
+              <span style={font(18, 700, '#000', { letterSpacing: '-0.36px' })}>Task Overview</span>
             </div>
+            <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {/* Title */}
               <div>
-                <label style={labelStyle}>Task Title <span style={{ color: '#ef4444' }}>*</span></label>
+                <label style={labelStyle}>
+                  Task Title <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <input
                   value={title}
                   onChange={e => setTitle(e.target.value)}
@@ -308,13 +413,13 @@ export default function AssignTaskPage() {
                 />
               </div>
 
-              {/* Description */}
+              {/* Details of Planned Assessment */}
               <div>
-                <label style={labelStyle}>Description</label>
+                <label style={labelStyle}>Details of Planned Assessment</label>
                 <textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="Optional — add instructions or context for this task"
+                  placeholder="Describe what the learner needs to do for this assessment activity..."
                   rows={3}
                   style={{
                     ...inputStyle,
@@ -326,15 +431,16 @@ export default function AssignTaskPage() {
                 />
               </div>
 
-              {/* Priority + Due Date */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <SectionDivider label="Assessment Fields" />
+
+              {/* Primary Method + Due Date + Reference row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px', gap: '16px' }}>
                 <div>
-                  <label style={labelStyle}>Priority</label>
-                  <select value={priority} onChange={e => setPriority(e.target.value)} style={selectStyle}>
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="CRITICAL">Critical</option>
+                  <label style={labelStyle}>Primary Method</label>
+                  <select value={primaryMethod} onChange={e => setPrimaryMethod(e.target.value)} style={selectStyle}>
+                    {METHOD_OPTIONS.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -346,6 +452,59 @@ export default function AssignTaskPage() {
                     style={inputStyle}
                   />
                 </div>
+                <div>
+                  <label style={labelStyle}>Reference</label>
+                  <input
+                    value={reference}
+                    onChange={e => setReference(e.target.value)}
+                    placeholder="e.g. FSE1"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              {/* Secondary Methods — checkboxes */}
+              <div>
+                <label style={{ ...labelStyle, marginBottom: '12px' }}>Secondary Methods</label>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '10px',
+                  backgroundColor: 'rgba(28,28,28,0.02)',
+                  border: '1px solid rgba(28,28,28,0.1)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                }}>
+                  {METHOD_OPTIONS.map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => toggleSecondaryMethod(method)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: '4px 0', textAlign: 'left',
+                      }}
+                    >
+                      <CheckboxIcon checked={secondaryMethods.includes(method)} />
+                      <span style={font(13, secondaryMethods.includes(method) ? 500 : 400)}>
+                        {method}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <SectionDivider label="Priority" />
+
+              {/* Priority */}
+              <div style={{ width: '50%' }}>
+                <label style={labelStyle}>Task Priority</label>
+                <select value={priority} onChange={e => setPriority(e.target.value)} style={selectStyle}>
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="CRITICAL">Critical</option>
+                </select>
               </div>
 
               {/* Error */}
@@ -376,10 +535,8 @@ export default function AssignTaskPage() {
               style={{
                 ...font(14, 500, '#fff'),
                 backgroundColor: submitting || !title.trim() ? 'rgba(28,28,28,0.35)' : '#1c1c1c',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px 24px',
-                height: '36px',
+                border: 'none', borderRadius: '8px',
+                padding: '8px 24px', height: '36px',
                 cursor: submitting || !title.trim() ? 'not-allowed' : 'pointer',
               }}
             >

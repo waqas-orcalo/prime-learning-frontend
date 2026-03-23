@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/api-client'
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
@@ -59,9 +61,10 @@ interface FieldProps {
   type?: 'text' | 'select'
   options?: string[]
   placeholder?: string
+  disabled?: boolean
 }
 
-function Field({ label, value, onChange, type = 'text', options = [], placeholder }: FieldProps) {
+function Field({ label, value, onChange, type = 'text', options = [], placeholder, disabled }: FieldProps) {
   return (
     <div>
       <label style={fieldLabel}>{label}</label>
@@ -70,7 +73,8 @@ function Field({ label, value, onChange, type = 'text', options = [], placeholde
           <select
             value={value}
             onChange={e => onChange?.(e.target.value)}
-            style={fieldSelect}
+            disabled={disabled}
+            style={{ ...fieldSelect, opacity: disabled ? 0.5 : 1 }}
           >
             {options.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
@@ -79,35 +83,160 @@ function Field({ label, value, onChange, type = 'text', options = [], placeholde
         <input
           value={value}
           onChange={e => onChange?.(e.target.value)}
-          placeholder={placeholder ?? 'Text'}
-          style={fieldInput}
+          placeholder={placeholder ?? ''}
+          disabled={disabled}
+          style={{ ...fieldInput, opacity: disabled ? 0.5 : 1 }}
         />
       )}
     </div>
   )
 }
 
+interface UserProfile {
+  _id?: string
+  firstName: string
+  lastName: string
+  email: string
+  role?: string
+  avatarUrl?: string | null
+  phone?: string
+  pronouns?: string
+  landline?: string
+  mobile?: string
+  skype?: string
+  website?: string
+  workplace?: string
+  address?: string
+  timezone?: string
+  homeAddress?: string
+  updatedAt?: string
+}
+
 export default function ProfilePage() {
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState('Resume.pdf')
 
-  // My Details fields
-  const [pronouns, setPronouns] = useState('None')
-  const [landline, setLandline] = useState('')
-  const [mobile, setMobile] = useState('')
-  const [skype, setSkype] = useState('')
-  const [website, setWebsite] = useState('')
-  const [workplace, setWorkplace] = useState('')
-  const [address, setAddress] = useState('')
-  const [timezone, setTimezone] = useState('None')
+  // Loading / saving states
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [saveMsg, setSaveMsg]   = useState('')
+  const [loadErr, setLoadErr]   = useState('')
+
+  // Profile fields — all start empty, loaded from API
+  const [firstName, setFirstName] = useState('')
+  const [lastName,  setLastName]  = useState('')
+  const [email,     setEmail]     = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState('')
+
+  const [pronouns,    setPronouns]    = useState('None')
+  const [landline,    setLandline]    = useState('')
+  const [mobile,      setMobile]      = useState('')
+  const [skype,       setSkype]       = useState('')
+  const [website,     setWebsite]     = useState('')
+  const [workplace,   setWorkplace]   = useState('')
+  const [address,     setAddress]     = useState('')
+  const [timezone,    setTimezone]    = useState('None')
   const [homeAddress, setHomeAddress] = useState('')
 
-  // Equality fields
-  const [ethnicity, setEthnicity] = useState('Unknown')
-  const [llddStatus, setLlddStatus] = useState('Learner considers himself or herself to have a learning difficulty and/or health problem.')
-  const [sex, setSex] = useState('Unknown')
+  // Equality fields (local only — no backend field yet)
+  const [ethnicity,     setEthnicity]     = useState('Unknown')
+  const [llddStatus,    setLlddStatus]    = useState('Learner considers himself or herself to have a learning difficulty and/or health problem.')
+  const [sex,           setSex]           = useState('Unknown')
   const [llddCondition, setLlddCondition] = useState('Dyslexia')
+
+  // ── Load profile from API ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!token) return
+    setLoading(true)
+    apiFetch<any>('/users/me', token)
+      .then(res => {
+        const u: UserProfile = res?.data ?? res
+        setFirstName(u.firstName ?? '')
+        setLastName(u.lastName ?? '')
+        setEmail(u.email ?? '')
+        setAvatarUrl(u.avatarUrl ?? null)
+        setUpdatedAt(u.updatedAt ?? '')
+        setPronouns(u.pronouns ?? 'None')
+        setLandline(u.landline ?? '')
+        setMobile(u.mobile ?? u.phone ?? '')
+        setSkype(u.skype ?? '')
+        setWebsite(u.website ?? '')
+        setWorkplace(u.workplace ?? '')
+        setAddress(u.address ?? '')
+        setTimezone(u.timezone ?? 'None')
+        setHomeAddress(u.homeAddress ?? '')
+      })
+      .catch(e => setLoadErr(e?.message ?? 'Failed to load profile'))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  // ── Save profile to API ────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!token) return
+    setSaving(true)
+    setSaveMsg('')
+    try {
+      await apiFetch('/users/me', token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          firstName, lastName,
+          pronouns: pronouns === 'None' ? null : pronouns,
+          landline: landline || null,
+          mobile:   mobile   || null,
+          skype:    skype    || null,
+          website:  website  || null,
+          workplace: workplace || null,
+          address:  address  || null,
+          timezone: timezone === 'None' ? null : timezone,
+          homeAddress: homeAddress || null,
+        }),
+      })
+      setSaveMsg('Profile saved successfully.')
+    } catch (e: any) {
+      setSaveMsg(e?.message ?? 'Failed to save profile.')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setSaveMsg(''), 4000)
+    }
+  }
+
+  const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'User'
+  const initials    = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const formatDate = (dt: string) => {
+    if (!dt) return ''
+    const d = new Date(dt)
+    if (isNaN(d.getTime())) return dt
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: '60px', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>
+        Loading profile…
+      </div>
+    )
+  }
+
+  if (loadErr) {
+    return (
+      <div style={{ padding: '60px', textAlign: 'center' }}>
+        <div style={font(14, 400, '#dc2626', { marginBottom: '12px' })}>{loadErr}</div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ ...font(13, 500, '#fff'), backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer' }}
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ maxWidth: '900px' }}>
@@ -116,53 +245,64 @@ export default function ProfilePage() {
         My Profile
       </h1>
 
+      {/* Save message toast */}
+      {saveMsg && (
+        <div style={{
+          marginBottom: '16px',
+          padding: '10px 16px',
+          backgroundColor: saveMsg.includes('success') ? '#f0faf0' : '#fff1f1',
+          border: `1px solid ${saveMsg.includes('success') ? '#7bc67e' : '#f87171'}`,
+          borderRadius: '8px',
+          ...font(13, 400, saveMsg.includes('success') ? '#166534' : '#dc2626'),
+        }}>
+          {saveMsg}
+        </div>
+      )}
+
       {/* === Avatar & Name === */}
       <div style={{ ...sectionCard, padding: '24px', display: 'flex', alignItems: 'flex-start', gap: '24px', marginBottom: '16px' }}>
         {/* Left: avatar + name + upload */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          {/* Avatar */}
           <div style={{
             width: '80px', height: '80px', borderRadius: '50%',
             backgroundColor: 'rgba(28,28,28,0.08)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden', flexShrink: 0,
           }}>
-            <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-              <circle cx="40" cy="32" r="14" fill="#9291A5"/>
-              <path d="M12 72c0-15.464 12.536-28 28-28s28 12.536 28 28" fill="#9291A5"/>
-            </svg>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ ...font(28, 600, '#1c1c1c') }}>{initials}</span>
+            )}
           </div>
-          <span style={font(16, 600, '#1c1c1c')}>John Doe</span>
-          <button style={{
-            ...FF,
-            fontSize: '13px',
-            fontWeight: 500,
-            color: '#fff',
-            backgroundColor: '#1c1c1c',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '5px 12px',
-            height: '28px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}>
+          <span style={font(16, 600, '#1c1c1c')}>{displayName}</span>
+          <input type="file" ref={fileRef} style={{ display: 'none' }} accept="image/*" onChange={e => {
+            const file = e.target.files?.[0]
+            if (file) {
+              const url = URL.createObjectURL(file)
+              setAvatarUrl(url)
+            }
+          }} />
+          <button
+            onClick={() => fileRef.current?.click()}
+            style={{
+              ...FF, fontSize: '13px', fontWeight: 500, color: '#fff',
+              backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px',
+              padding: '5px 12px', height: '28px', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
             Upload new profile picture
           </button>
         </div>
 
         {/* Right: info notices */}
         <div style={{
-          flex: 1,
-          backgroundColor: 'rgba(28,28,28,0.03)',
-          borderRadius: '12px',
-          border: '1px solid rgba(28,28,28,0.1)',
-          padding: '16px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
+          flex: 1, backgroundColor: 'rgba(28,28,28,0.03)', borderRadius: '12px',
+          border: '1px solid rgba(28,28,28,0.1)', padding: '16px 20px',
+          display: 'flex', flexDirection: 'column', gap: '10px',
         }}>
           {[
-            'This page was last updated on 19/12/2024 01:59.',
+            updatedAt ? `This page was last updated on ${formatDate(updatedAt)}.` : 'Profile information is loaded from your account.',
             "Please note emails are now managed on the 'Email Preferences' page",
           ].map((msg, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -173,6 +313,20 @@ export default function ProfilePage() {
               <span style={font(13, 400, 'rgba(28,28,28,0.7)')}>{msg}</span>
             </div>
           ))}
+          {/* Email (read-only) */}
+          <div style={{ marginTop: '4px' }}>
+            <span style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), display: 'block', marginBottom: '2px' }}>Email address</span>
+            <span style={font(14, 400, '#1c1c1c')}>{email}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Name fields */}
+      <div style={sectionCard}>
+        <div style={sectionHeader}>Name</div>
+        <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Field label="First name" value={firstName} onChange={setFirstName} placeholder="First name" />
+          <Field label="Last name"  value={lastName}  onChange={setLastName}  placeholder="Last name"  />
         </div>
       </div>
 
@@ -180,7 +334,6 @@ export default function ProfilePage() {
       <div style={sectionCard}>
         <div style={sectionHeader}>My Details</div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Row 1: Pronouns | Landline | Mobile */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <Field
               label="Pronouns"
@@ -189,26 +342,24 @@ export default function ProfilePage() {
               type="select"
               options={['None', 'He/Him', 'She/Her', 'They/Them', 'Other']}
             />
-            <Field label="Landline telephone number" value={landline} onChange={setLandline} placeholder="Text" />
-            <Field label="Mobile telephone number" value={mobile} onChange={setMobile} placeholder="Text" />
+            <Field label="Landline telephone number" value={landline} onChange={setLandline} placeholder="Landline" />
+            <Field label="Mobile telephone number"   value={mobile}   onChange={setMobile}   placeholder="Mobile"   />
           </div>
-          {/* Row 2: Skype | Website | Name of study/work */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-            <Field label="Skype name" value={skype} onChange={setSkype} placeholder="Text" />
-            <Field label="Website link (Facebook, Twitter, etc.)" value={website} onChange={setWebsite} placeholder="Text" />
-            <Field label="Name of study/work place (e.g. employer name)" value={workplace} onChange={setWorkplace} placeholder="Text" />
+            <Field label="Skype name" value={skype} onChange={setSkype} placeholder="Skype" />
+            <Field label="Website link (Facebook, Twitter, etc.)" value={website} onChange={setWebsite} placeholder="https://" />
+            <Field label="Name of study/work place (e.g. employer name)" value={workplace} onChange={setWorkplace} placeholder="Workplace" />
           </div>
-          {/* Row 3: Address | Time Zone | Home address */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-            <Field label="Address of study/ work" value={address} onChange={setAddress} placeholder="Text" />
+            <Field label="Address of study/work" value={address} onChange={setAddress} placeholder="Address" />
             <Field
               label="Time Zone"
               value={timezone}
               onChange={setTimezone}
               type="select"
-              options={['None', 'GMT (UTC+0)', 'BST (UTC+1)', 'EST (UTC-5)', 'PST (UTC-8)']}
+              options={['None', 'GMT (UTC+0)', 'BST (UTC+1)', 'EST (UTC-5)', 'PST (UTC-8)', 'Europe/London', 'America/New_York', 'America/Los_Angeles']}
             />
-            <Field label="Home address (including post code)>" value={homeAddress} onChange={setHomeAddress} placeholder="Text" />
+            <Field label="Home address (including post code)" value={homeAddress} onChange={setHomeAddress} placeholder="Home address" />
           </div>
         </div>
       </div>
@@ -221,41 +372,21 @@ export default function ProfilePage() {
           </span>
         </div>
         <div style={{ padding: '20px' }}>
-          {/* Action row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <button style={{
-              ...FF,
-              fontSize: '13px',
-              fontWeight: 500,
-              color: '#fff',
-              backgroundColor: '#1c1c1c',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '5px 12px',
-              height: '28px',
-              cursor: 'pointer',
-            }}>
+            <button style={{ ...FF, fontSize: '13px', fontWeight: 500, color: '#fff', backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '5px 12px', height: '28px', cursor: 'pointer' }}>
               Create link
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={font(13, 400, 'rgba(28,28,28,0.7)', { textDecoration: 'underline', cursor: 'pointer' })}>
                 View supported file types
               </span>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="6" stroke="rgba(28,28,28,0.5)" strokeWidth="1.2"/>
-                <path d="M7 6v4" stroke="rgba(28,28,28,0.5)" strokeWidth="1.2" strokeLinecap="round"/>
-                <circle cx="7" cy="4.5" r="0.7" fill="rgba(28,28,28,0.5)"/>
-              </svg>
             </div>
           </div>
-
-          {/* Drop zone */}
           <div
             onDragOver={e => { e.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
             onDrop={e => {
-              e.preventDefault()
-              setDragging(false)
+              e.preventDefault(); setDragging(false)
               const file = e.dataTransfer.files[0]
               if (file) setUploadedFile(file.name)
             }}
@@ -264,15 +395,10 @@ export default function ProfilePage() {
               borderRadius: '12px',
               backgroundColor: dragging ? 'rgba(28,28,28,0.03)' : 'rgba(28,28,28,0.02)',
               padding: '28px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '16px',
-              transition: 'all 0.15s',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+              marginBottom: '16px', transition: 'all 0.15s',
             }}
           >
-            {/* Upload icon */}
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
               <path d="M20 26V14m0 0l-5 5m5-5l5 5" stroke="rgba(28,28,28,0.4)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M10 30a8 8 0 0 1 0-16 8.5 8.5 0 0 1 16.97-1.04A6 6 0 0 1 30 24" stroke="rgba(28,28,28,0.3)" strokeWidth="1.6" strokeLinecap="round"/>
@@ -282,25 +408,11 @@ export default function ProfilePage() {
             <input type="file" ref={fileRef} style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) setUploadedFile(e.target.files[0].name) }} />
             <button
               onClick={() => fileRef.current?.click()}
-              style={{
-                ...FF,
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#1c1c1c',
-                backgroundColor: 'transparent',
-                border: '1px solid rgba(28,28,28,0.25)',
-                borderRadius: '8px',
-                padding: '5px 16px',
-                height: '30px',
-                cursor: 'pointer',
-                marginTop: '4px',
-              }}
+              style={{ ...FF, fontSize: '13px', fontWeight: 500, color: '#1c1c1c', backgroundColor: 'transparent', border: '1px solid rgba(28,28,28,0.25)', borderRadius: '8px', padding: '5px 16px', height: '30px', cursor: 'pointer', marginTop: '4px' }}
             >
               SELECT FILE
             </button>
           </div>
-
-          {/* Uploaded file */}
           {uploadedFile && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -317,7 +429,6 @@ export default function ProfilePage() {
       <div style={sectionCard}>
         <div style={sectionHeader}>Equality, LLDD and Health</div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Row 1 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Field
               label="Ethnicity"
@@ -338,7 +449,6 @@ export default function ProfilePage() {
               ]}
             />
           </div>
-          {/* Row 2 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Field
               label="Sex:"
@@ -360,32 +470,28 @@ export default function ProfilePage() {
 
       {/* Footer buttons */}
       <div style={{ display: 'flex', gap: '8px', paddingBottom: '32px' }}>
-        <button style={{
-          ...FF,
-          fontSize: '14px',
-          fontWeight: 500,
-          color: '#fff',
-          backgroundColor: '#1c1c1c',
-          border: 'none',
-          borderRadius: '8px',
-          padding: '6px 20px',
-          height: '34px',
-          cursor: 'pointer',
-        }}>
-          Send
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            ...FF, fontSize: '14px', fontWeight: 500, color: '#fff',
+            backgroundColor: saving ? '#888' : '#1c1c1c',
+            border: 'none', borderRadius: '8px',
+            padding: '6px 20px', height: '34px',
+            cursor: saving ? 'default' : 'pointer',
+          }}
+        >
+          {saving ? 'Saving…' : 'Save'}
         </button>
-        <button style={{
-          ...FF,
-          fontSize: '14px',
-          fontWeight: 400,
-          color: '#1c1c1c',
-          backgroundColor: 'transparent',
-          border: '1px solid rgba(28,28,28,0.2)',
-          borderRadius: '8px',
-          padding: '6px 20px',
-          height: '34px',
-          cursor: 'pointer',
-        }}>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            ...FF, fontSize: '14px', fontWeight: 400, color: '#1c1c1c',
+            backgroundColor: 'transparent',
+            border: '1px solid rgba(28,28,28,0.2)',
+            borderRadius: '8px', padding: '6px 20px', height: '34px', cursor: 'pointer',
+          }}
+        >
           Cancel
         </button>
       </div>
