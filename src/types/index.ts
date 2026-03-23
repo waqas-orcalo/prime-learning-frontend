@@ -64,6 +64,26 @@ export interface LearningEntry {
   createdAt: string
 }
 
+// ── Learning Journals ─────────────────────────────────────────────────────
+export interface JournalEntry {
+  id: string
+  title: string
+  category: string
+  date: string        // YYYY-MM-DD
+  timeHH: string
+  timeMM: string
+  amPm: 'AM' | 'PM'
+  durationHH: string
+  durationMM: string
+  offJob: boolean
+  onJob: boolean
+  reflection: string
+  privacy: 'only_me' | 'everyone'
+  files: string[]
+  createdAt: string
+  updatedAt: string
+}
+
 // ── UI / Common ───────────────────────────────────────────────────────────
 export interface NavItem {
   label: string

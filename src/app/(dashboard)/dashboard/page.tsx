@@ -156,12 +156,12 @@ const MAIN_TABS = ['Activity','Manage','Progress','Forms']
 const SUB_TABS = [
   { label: 'Activity', icon: iconChartPolar, route: '/activity-log' },
   { label: 'Learning Activity Evidence', icon: iconFiles, route: '/learning-activities/evidence' },
-  { label: 'Timesheet', icon: iconCalendarCheck, route: '/learning-activities/timesheet' },
+  { label: 'Timesheet', icon: iconCalendarCheck, route: '/learning-journals/timesheet' },
   { label: 'Visit', icon: iconCalendarBlank, route: '/learning-activities/visit' },
 ]
 const INFO_CARDS = [
   { title: 'Plan Of Activity/action', desc: 'View pending and completed Plan Of Activity/action', icon: iconClipboard, statLabel: 'Pending:', stat: '01 / 03', route: '/plan-of-activity' },
-  { title: "View the learner's Off-The-Job training record", desc: 'Lorem Ipsum place holder text', icon: iconDocument, statLabel: 'OTJ Total:', stat: '0 / 0', route: '/learning-activities/timesheet' },
+  { title: "View the learner's Off-The-Job training record", desc: 'Lorem Ipsum place holder text', icon: iconDocument, statLabel: 'OTJ Total:', stat: '0 / 0', route: '/learning-journals/timesheet' },
   { title: 'Progress Reviews', desc: "View the learner's progress reviews.", icon: iconClipboard, statLabel: 'Next Set:', stat: '27/02/2025', route: '/progress-review' },
 ]
 

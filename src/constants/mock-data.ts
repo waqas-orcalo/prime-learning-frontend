@@ -1,4 +1,4 @@
-import type { Task, Contact, LearningEntry } from '@/types'
+import type { Task, Contact, LearningEntry, JournalEntry } from '@/types'
 
 export const MOCK_TASKS: Task[] = [
   { id: '1', title: 'Complete onboarding module', dueDate: '2024-08-15', priority: 'high', status: 'in_progress', assignedBy: 'Sarah Connor', description: '', createdAt: '2024-07-01', updatedAt: '2024-07-10' },
@@ -18,4 +18,25 @@ export const MOCK_LEARNING_ENTRIES: LearningEntry[] = [
   { id: '1', title: 'Workplace Observation', category: 'On the Job', dateFrom: '2024-07-01', dateTo: '2024-07-01', duration: 120, offTheJob: false, activityType: 'on_job', reflection: 'Observed key workflows', recordedBy: 'John Doe', createdAt: '2024-07-01' },
   { id: '2', title: 'Online Training Course', category: 'Off the Job', dateFrom: '2024-07-05', dateTo: '2024-07-05', duration: 180, offTheJob: true, activityType: 'off_job', reflection: 'Completed module 3', recordedBy: 'John Doe', createdAt: '2024-07-05' },
   { id: '3', title: 'Mentor Meeting', category: 'On the Job', dateFrom: '2024-07-10', dateTo: '2024-07-10', duration: 60, offTheJob: false, activityType: 'on_job', reflection: 'Discussed progress', recordedBy: 'Sarah Connor', createdAt: '2024-07-10' },
+]
+
+export let MOCK_JOURNAL_ENTRIES: JournalEntry[] = [
+  {
+    id: '1', title: 'Development task 1', category: 'Competition',
+    date: '2024-12-27', timeHH: '10', timeMM: '22', amPm: 'AM',
+    durationHH: '21', durationMM: '20',
+    offJob: false, onJob: true,
+    reflection: 'Completed the initial development tasks for the UI components.',
+    privacy: 'only_me', files: [],
+    createdAt: '2024-12-27T10:22:00Z', updatedAt: '2024-12-27T10:22:00Z',
+  },
+  {
+    id: '2', title: 'Research on best practices', category: 'Research',
+    date: '2024-12-24', timeHH: '09', timeMM: '00', amPm: 'AM',
+    durationHH: '02', durationMM: '30',
+    offJob: true, onJob: false,
+    reflection: 'Researched industry best practices for UX design.',
+    privacy: 'everyone', files: [],
+    createdAt: '2024-12-24T09:00:00Z', updatedAt: '2024-12-24T09:00:00Z',
+  },
 ]

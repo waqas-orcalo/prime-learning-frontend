@@ -11,7 +11,7 @@ export const ROUTES = {
 
   // Learning Activities
   LEARNING_ACTIVITIES: {
-    TIMESHEET: '/learning-activities/timesheet',
+    TIMESHEET: '/learning-journals/timesheet',
     EVIDENCE: '/learning-activities/evidence',
     VISIT: '/learning-activities/visit',
   },
