@@ -15,6 +15,8 @@ export const NAV_ITEMS = [
 export const BREADCRUMB_MAP: Record<string, string[]> = {
   '/dashboard': ['Dashboards'],
   '/tasks': ['Dashboards', 'Task'],
+  '/tasks/assign': ['Dashboards', 'Task', 'Assign Task'],
+  '/tasks/[id]': ['Dashboards', 'Task', 'Task Details'],
   '/profile': ['Dashboards', 'My Profile'],
   '/my-account': ['Dashboards', 'My Account'],
   '/learning-journals/timesheet': ['Dashboards', 'Learning Journals', 'Timesheets'],
