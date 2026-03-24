@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { apiFetch } from '@/lib/api-client'
+import { useCreateLearnerFeedback } from '@/hooks/use-learner-feedback'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -39,26 +39,53 @@ interface FormData {
   trainerSigned: boolean
 }
 
-const INIT: FormData = { trainersName: '', keyPoint: '', useSkillsImpact: '', moreInfoOn: '', completedJournal: 'No', ifNoWhyNot: '', improvementSuggestion: '', learnerSigned: false, trainerSigned: false }
+const INIT: FormData = {
+  trainersName: '', keyPoint: '', useSkillsImpact: '', moreInfoOn: '',
+  completedJournal: 'No', ifNoWhyNot: '', improvementSuggestion: '',
+  learnerSigned: false, trainerSigned: false,
+}
 
 function CreateLearnerFeedbackInner() {
   const router = useRouter()
   const { data: session } = useSession()
   const [form, setForm] = useState<FormData>(INIT)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const createMutation = useCreateLearnerFeedback()
+
+  const user = session?.user as any
+  const learnerId: string = user?._id ?? user?.id ?? ''
+  const learnerName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Learner'
+  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const set = (k: keyof FormData) => (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleSave = async () => {
-    setSaving(true); setError('')
-    try {
-      const token = (session?.user as any)?.accessToken
-      if (token) await apiFetch('/forms/learner-feedback', token, { method: 'POST', body: JSON.stringify(form) }).catch(() => {})
-      router.push('/forms/learner-feedback')
-    } catch { setError('Failed to save') } finally { setSaving(false) }
+    setError('')
+    if (!learnerId) { setError('Could not determine learner ID from session. Please re-login.'); return }
+
+    createMutation.mutate(
+      {
+        learnerId,
+        trainersName:         form.trainersName,
+        keyPoint:             form.keyPoint,
+        useSkillsImpact:      form.useSkillsImpact,
+        moreInfoOn:           form.moreInfoOn,
+        completedJournal:     form.completedJournal,
+        ifNoWhyNot:           form.ifNoWhyNot,
+        improvementSuggestion: form.improvementSuggestion,
+        learnerSigned:        form.learnerSigned,
+        trainerSigned:        form.trainerSigned,
+      },
+      {
+        onSuccess: () => router.push('/forms/learner-feedback'),
+        onError: (err) => setError(err.message || 'Failed to save. Please try again.'),
+      },
+    )
   }
+
+  const saving = createMutation.isPending
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 980, ...FF }}>
@@ -120,7 +147,14 @@ function CreateLearnerFeedbackInner() {
             </div>
             <div style={FIELD_WRAP}>
               <span style={FIELD_LABEL}>If you selected no why not?</span>
-              <textarea value={form.ifNoWhyNot} onChange={set('ifNoWhyNot')} placeholder="Text" style={FIELD_INPUT} rows={3} disabled={form.completedJournal !== 'No'} />
+              <textarea
+                value={form.ifNoWhyNot}
+                onChange={set('ifNoWhyNot')}
+                placeholder="Text"
+                style={{ ...FIELD_INPUT, opacity: form.completedJournal !== 'No' ? 0.4 : 1 }}
+                rows={3}
+                disabled={form.completedJournal !== 'No'}
+              />
             </div>
           </div>
 
@@ -139,13 +173,18 @@ function CreateLearnerFeedbackInner() {
           <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 8, padding: '12px 16px', background: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="checkbox" checked={form.learnerSigned} onChange={e => setForm(f => ({ ...f, learnerSigned: e.target.checked }))} style={{ width: 14, height: 14 }} />
+                <input
+                  type="checkbox"
+                  checked={form.learnerSigned}
+                  onChange={e => setForm(f => ({ ...f, learnerSigned: e.target.checked }))}
+                  style={{ width: 14, height: 14 }}
+                />
                 <span style={font(13, 500)}>Signature</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <img src={iconUser} width={14} height={14} alt="" />
-                <span style={font(12, 400, '#555')}>John Doe (Learner)</span>
-                <span style={font(11, 400, '#aaa')}>2025/03/03</span>
+                <span style={font(12, 400, '#555')}>{learnerName} (Learner)</span>
+                <span style={font(11, 400, '#aaa')}>{today}</span>
               </div>
             </div>
             <p style={{ ...font(11, 400, '#888'), margin: '6px 0 0 24px' }}>
@@ -157,7 +196,12 @@ function CreateLearnerFeedbackInner() {
           <div style={{ border: '1px solid rgba(28,28,28,0.08)', borderRadius: 8, padding: '12px 16px', background: '#fafafa' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="checkbox" checked={form.trainerSigned} onChange={e => setForm(f => ({ ...f, trainerSigned: e.target.checked }))} style={{ width: 14, height: 14 }} />
+                <input
+                  type="checkbox"
+                  checked={form.trainerSigned}
+                  onChange={e => setForm(f => ({ ...f, trainerSigned: e.target.checked }))}
+                  style={{ width: 14, height: 14 }}
+                />
                 <span style={{ ...font(13, 500, '#888') }}>Signature</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -174,17 +218,22 @@ function CreateLearnerFeedbackInner() {
         {/* ── Footer buttons ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderTop: '1px solid rgba(28,28,28,0.08)' }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleSave} disabled={saving} style={{ padding: '9px 22px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: '9px 22px', background: saving ? '#555' : '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}
+            >
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button onClick={() => router.back()} style={{ padding: '9px 22px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}>
+            <button
+              onClick={() => router.back()}
+              style={{ padding: '9px 22px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}
+            >
               Cancel
             </button>
           </div>
-          <button style={{ padding: '9px 22px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}>
-            Delete
-          </button>
         </div>
+
         {error && <p style={{ ...font(12, 400, '#ef4444'), padding: '0 16px 12px' }}>{error}</p>}
       </div>
     </div>

@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import { apiFetch } from '@/lib/api-client'
+import { useLearnerFeedbackList } from '@/hooks/use-learner-feedback'
 
 /* ── shared SVG helpers ── */
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
-const iconBack   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
-const iconCal    = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#888" stroke-width="1.2"/><path d="M1 5.5h12M4.5 1v2M9.5 1v2" stroke="#888" stroke-width="1.2" stroke-linecap="round"/></svg>`)
-const iconCaret  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
-const iconPlus   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M6 1v10M1 6h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`)
-const iconFile   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"><path d="M4 2h6l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#1c1c1c" stroke-width="1.3"/><path d="M9 2v4h4" stroke="#1c1c1c" stroke-width="1.3" stroke-linejoin="round"/></svg>`)
+const iconBack  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconCal   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#888" stroke-width="1.2"/><path d="M1 5.5h12M4.5 1v2M9.5 1v2" stroke="#888" stroke-width="1.2" stroke-linecap="round"/></svg>`)
+const iconCaret = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconPlus  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M6 1v10M1 6h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`)
+const iconFile  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"><path d="M4 2h6l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#1c1c1c" stroke-width="1.3"/><path d="M9 2v4h4" stroke="#1c1c1c" stroke-width="1.3" stroke-linejoin="round"/></svg>`)
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
@@ -19,47 +18,39 @@ const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSPro
 
 const FORM_OPTIONS = ['Learner feedback from teach sessions']
 
-interface FormInstance {
-  _id: string
-  formName: string
-  learnerName: string
-  instanceName: string
-  dateCreated: string
-  dateModified: string
-  signed: boolean
-}
-
-const MOCK: FormInstance[] = [
-  { _id: '1', formName: 'Learner feedback from teach sessions', learnerName: 'John Doe', instanceName: 'John doe - Learner feedback from teach sessions - 11/02/2025', dateCreated: '07/02/25 08:15', dateModified: '08/02/25 18:15', signed: false },
-  { _id: '2', formName: 'Learner feedback from teach sessions', learnerName: 'John Doe', instanceName: 'John doe - Learner feedback from teach sessions - 11/02/2025', dateCreated: '07/02/25 08:15', dateModified: '08/02/25 18:15', signed: false },
-  { _id: '3', formName: 'Learner feedback from teach sessions', learnerName: 'John Doe', instanceName: 'John doe - Learner feedback from teach sessions - 11/02/2025', dateCreated: '07/02/25 08:15', dateModified: '08/02/25 18:15', signed: false },
-  { _id: '4', formName: 'Learner feedback from teach sessions', learnerName: 'John Doe', instanceName: 'John doe - Learner feedback from teach sessions - 11/02/2025', dateCreated: '07/02/25 08:15', dateModified: '08/02/25 18:15', signed: false },
-]
-
 const TH: React.CSSProperties = { padding: '10px 14px', ...font(12, 500, '#555'), textAlign: 'left', borderBottom: '1px solid rgba(28,28,28,0.1)', background: '#fafafa', whiteSpace: 'nowrap' }
 const TD: React.CSSProperties = { padding: '12px 14px', ...font(12), borderBottom: '1px solid rgba(28,28,28,0.07)', verticalAlign: 'middle' }
 
+function SkeletonRow() {
+  return (
+    <tr>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <td key={i} style={TD}>
+          <div style={{ height: 14, background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)', backgroundSize: '200% 100%', borderRadius: 4, animation: 'shimmer 1.4s infinite', width: i === 2 ? '80%' : '60%' }} />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
 function LearnerFeedbackInner() {
   const router = useRouter()
-  const { data: session } = useSession()
-  const [instances, setInstances] = useState<FormInstance[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [dateFrom, setDateFrom]   = useState('12/12/2025')
-  const [dateTo, setDateTo]       = useState('18/12/2025')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
   const [formFilter, setFormFilter] = useState(FORM_OPTIONS[0])
-  const [dropOpen, setDropOpen]   = useState(false)
+  const [dropOpen, setDropOpen] = useState(false)
 
-  useEffect(() => {
-    const token = (session?.user as any)?.accessToken
-    if (!token) return
-    apiFetch<any>('/forms/learner-feedback', token)
-      .then(r => { const d = r?.data?.data ?? r?.data ?? []; setInstances(Array.isArray(d) && d.length ? d : MOCK) })
-      .catch(() => setInstances(MOCK))
-      .finally(() => setLoading(false))
-  }, [session])
+  const { data, isLoading, isError } = useLearnerFeedbackList({
+    dateFrom: dateFrom || undefined,
+    dateTo:   dateTo   || undefined,
+  })
+
+  const instances = data?.data ?? []
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1100, ...FF }}>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0, flexShrink: 0 }}>
@@ -89,7 +80,12 @@ function LearnerFeedbackInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={font(12, 500)}>Date From:</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, padding: '4px 8px', background: '#fff' }}>
-              <input value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ border: 'none', outline: 'none', ...font(12), background: 'transparent', width: 90 }} />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                style={{ border: 'none', outline: 'none', ...font(12), background: 'transparent', width: 120 }}
+              />
               <img src={iconCal} width={14} height={14} alt="" />
             </div>
           </div>
@@ -97,7 +93,12 @@ function LearnerFeedbackInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={font(12, 500)}>Date To:</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, padding: '4px 8px', background: '#fff' }}>
-              <input value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ border: 'none', outline: 'none', ...font(12), background: 'transparent', width: 90 }} />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                style={{ border: 'none', outline: 'none', ...font(12), background: 'transparent', width: 120 }}
+              />
               <img src={iconCal} width={14} height={14} alt="" />
             </div>
           </div>
@@ -125,6 +126,13 @@ function LearnerFeedbackInner() {
           </div>
         </div>
 
+        {/* Error banner */}
+        {isError && (
+          <div style={{ padding: '10px 16px', background: '#fef2f2', borderBottom: '1px solid rgba(239,68,68,0.2)' }}>
+            <span style={font(12, 400, '#ef4444')}>Failed to load feedback forms. Please try again.</span>
+          </div>
+        )}
+
         {/* Table */}
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -140,32 +148,59 @@ function LearnerFeedbackInner() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={7} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '32px' }}>Loading…</td></tr>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : instances.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '40px' }}>
+                    No feedback forms found.
+                  </td>
+                </tr>
               ) : instances.map((row, i) => (
-                <tr key={row._id || i}
+                <tr
+                  key={row._id || i}
                   onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                   onMouseLeave={e => (e.currentTarget.style.background = '')}
                 >
-                  <td style={TD}><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><img src={iconFile} width={14} height={14} alt="" />{row.formName}</span></td>
-                  <td style={TD}>{row.learnerName}</td>
-                  <td style={{ ...TD, maxWidth: 260 }}><span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{row.instanceName}</span></td>
-                  <td style={TD}>{row.dateCreated}</td>
-                  <td style={TD}>{row.dateModified}</td>
+                  <td style={TD}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <img src={iconFile} width={14} height={14} alt="" />
+                      {row.formName}
+                    </span>
+                  </td>
+                  <td style={TD}>{row.learnerName ?? ''}</td>
+                  <td style={{ ...TD, maxWidth: 260 }}>
+                    <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {row.instanceName}
+                    </span>
+                  </td>
+                  <td style={TD}>{row.dateCreated ?? ''}</td>
+                  <td style={TD}>{row.dateModified ?? ''}</td>
                   <td style={{ ...TD, textAlign: 'center' }}>
-                    <input type="checkbox" checked={row.signed} onChange={() => {}} style={{ width: 14, height: 14, cursor: 'pointer' }} />
+                    <input type="checkbox" checked={!!row.signed} onChange={() => {}} style={{ width: 14, height: 14, cursor: 'default' }} />
                   </td>
                   <td style={{ ...TD, textAlign: 'center' }}>
                     <button
                       onClick={() => router.push(`/forms/learner-feedback/${row._id}`)}
                       style={{ padding: '5px 18px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff') }}
-                    >Open</button>
+                    >
+                      Open
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination info */}
+        {data?.pagination && data.pagination.total > 0 && (
+          <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(28,28,28,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+            <span style={font(11, 400, '#888')}>
+              Showing {instances.length} of {data.pagination.total} records
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -19,19 +19,33 @@ export const authConfig: NextAuthConfig = {
 
       const isAdminRole =
         role === 'SUPER_ADMIN' || role === 'ORG_ADMIN'
+      const isTrainerRole = role === 'TRAINER'
 
       const isPublicPath =
         nextUrl.pathname.startsWith('/login') ||
         nextUrl.pathname.startsWith('/signup')
 
-      const isAdminPath = nextUrl.pathname.startsWith('/admin')
+      const isAdminPath          = nextUrl.pathname.startsWith('/admin')
+      const isTrainerPath        = nextUrl.pathname.startsWith('/trainer-dashboard')
+      const isLearnerDashPath    = nextUrl.pathname.startsWith('/dashboard')
 
       if (!isPublicPath) {
         if (!isLoggedIn) return false // redirect to /login
 
-        // Non-admin trying to reach /admin → send to /dashboard
+        // Non-admin trying to reach /admin → send to role-appropriate home
         if (isAdminPath && !isAdminRole) {
+          const fallback = isTrainerRole ? '/trainer-dashboard' : '/dashboard'
+          return Response.redirect(new URL(fallback, nextUrl))
+        }
+
+        // Non-trainer trying to reach /trainer-dashboard → send to /dashboard
+        if (isTrainerPath && !isTrainerRole && !isAdminRole) {
           return Response.redirect(new URL('/dashboard', nextUrl))
+        }
+
+        // Trainer trying to reach /dashboard → send to /trainer-dashboard
+        if (isLearnerDashPath && isTrainerRole) {
+          return Response.redirect(new URL('/trainer-dashboard', nextUrl))
         }
 
         return true
@@ -39,7 +53,9 @@ export const authConfig: NextAuthConfig = {
 
       // Logged-in user hitting a public page → send to role-appropriate home
       if (isLoggedIn) {
-        const home = isAdminRole ? '/admin' : '/dashboard'
+        let home = '/dashboard'
+        if (isAdminRole)   home = '/admin'
+        else if (isTrainerRole) home = '/trainer-dashboard'
         return Response.redirect(new URL(home, nextUrl))
       }
       return true
@@ -117,6 +133,21 @@ export const authConfig: NextAuthConfig = {
               lastName: 'Doe',
               role: 'LEARNER',
               accessToken: 'mock-jwt-token',
+            }
+          }
+          // Hardcoded trainer fallback
+          if (
+            parsed.data.email === 'trainer@example.com' &&
+            parsed.data.password === 'password123'
+          ) {
+            return {
+              id: '2',
+              name: 'Jane Smith',
+              email: parsed.data.email,
+              firstName: 'Jane',
+              lastName: 'Smith',
+              role: 'TRAINER',
+              accessToken: 'mock-trainer-jwt-token',
             }
           }
           // Hardcoded admin fallback

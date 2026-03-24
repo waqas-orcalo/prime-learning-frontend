@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { apiFetch } from '@/lib/api-client'
+import { useCreateExitReview } from '@/hooks/use-exit-review'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -19,32 +19,31 @@ const FIELD_WRAP: React.CSSProperties = { background: '#fafafa', border: '1px so
 const FIELD_LABEL: React.CSSProperties = { ...font(11, 400, '#888'), marginBottom: 2, lineHeight: '16px' }
 const FIELD_INPUT: React.CSSProperties = { border: 'none', outline: 'none', ...font(13), background: 'transparent', resize: 'none', width: '100%', padding: 0 }
 
-/* Programme Evaluation questions from Figma */
 const PE_QUESTIONS_PAIRS = [
   [
-    'Can you describe any specific skills or knowledge you\'ve acquired during your apprenticeship that you didn\'t have before?',
-    'How has your apprenticeship contributed to your understanding of your chosen field or industry?',
+    "Can you describe any specific skills or knowledge you've acquired during your apprenticeship that you didn't have before?",
+    "How has your apprenticeship contributed to your understanding of your chosen field or industry?",
   ],
   [
-    'In what ways has your apprenticeship experience influenced your career goals or aspirations?',
-    'How has your confidence grown in your ability to perform tasks related to your apprenticeship since you started?',
+    "In what ways has your apprenticeship experience influenced your career goals or aspirations?",
+    "How has your confidence grown in your ability to perform tasks related to your apprenticeship since you started?",
   ],
   [
-    'How has your confidence grown in your ability to perform tasks related to your apprenticeship since you started?',
-    'How has your interaction with mentors, supervisors, or colleagues during your apprenticeship impacted your learning and professional development?',
+    "How has your confidence grown in your ability to perform tasks related to your apprenticeship since you started?",
+    "How has your interaction with mentors, supervisors, or colleagues during your apprenticeship impacted your learning and professional development?",
   ],
   [
-    'Can you identify any challenges you\'ve overcome during your apprenticeship and how they\'ve contributed to your growth?',
-    'Have you developed any new perspectives or insights into your chosen field or industry as a result of your apprenticeship experience?',
+    "Can you identify any challenges you've overcome during your apprenticeship and how they've contributed to your growth?",
+    "Have you developed any new perspectives or insights into your chosen field or industry as a result of your apprenticeship experience?",
   ],
   [
-    'Looking back on your time as an apprentice, what do you believe has been the most significant impact of this experience on your personal and professional development?',
-    'Have you considered any further education or training opportunities to enhance your skills and qualifications? If yes, what areas are you interested in pursuing?',
+    "Looking back on your time as an apprentice, what do you believe has been the most significant impact of this experience on your personal and professional development?",
+    "Have you considered any further education or training opportunities to enhance your skills and qualifications? If yes, what areas are you interested in pursuing?",
   ],
 ]
 const PE_LAST = 'How do you plan to stay informed about relevant industry trends, opportunities, and resources to support your ongoing growth and development?'
 
-type FormData = {
+interface FormState {
   learnersName: string
   startDate: string
   answers: Record<string, string>
@@ -53,25 +52,46 @@ type FormData = {
   trainerSigned: boolean
 }
 
-const INIT: FormData = { learnersName: '', startDate: '', answers: {}, answerLast: '', learnerSigned: false, trainerSigned: false }
+const INIT: FormState = { learnersName: '', startDate: '', answers: {}, answerLast: '', learnerSigned: false, trainerSigned: false }
 
 function CreateExitReviewInner() {
   const router = useRouter()
   const { data: session } = useSession()
-  const [form, setForm] = useState<FormData>(INIT)
-  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<FormState>(INIT)
+  const [error, setError] = useState('')
+
+  const createMutation = useCreateExitReview()
+
+  const user = session?.user as any
+  const learnerId: string = user?._id ?? user?.id ?? ''
+  const learnerName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Learner'
+  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const setAnswer = (key: string) => (e: React.ChangeEvent<HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, answers: { ...f.answers, [key]: e.target.value } }))
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const token = (session?.user as any)?.accessToken
-      if (token) await apiFetch('/forms/exit-review', token, { method: 'POST', body: JSON.stringify(form) }).catch(() => {})
-      router.push('/forms/exit-review')
-    } finally { setSaving(false) }
+  const handleSave = () => {
+    setError('')
+    if (!learnerId) { setError('Could not determine learner ID from session. Please re-login.'); return }
+
+    createMutation.mutate(
+      {
+        learnerId,
+        learnersName:  form.learnersName,
+        startDate:     form.startDate || undefined,
+        answers:       form.answers,
+        answerLast:    form.answerLast,
+        learnerSigned: form.learnerSigned,
+        trainerSigned: form.trainerSigned,
+      },
+      {
+        onSuccess: () => router.push('/forms/exit-review'),
+        onError: (err) => setError(err.message || 'Failed to save. Please try again.'),
+      },
+    )
   }
+
+  const saving = createMutation.isPending
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 980, ...FF }}>
@@ -104,7 +124,6 @@ function CreateExitReviewInner() {
                 type="date"
                 value={form.startDate}
                 onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                placeholder="Pick a date"
                 style={{ ...FIELD_INPUT, padding: '2px 0', flex: 1 }}
               />
             </div>
@@ -158,8 +177,8 @@ function CreateExitReviewInner() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <img src={iconUser} width={14} height={14} alt="" />
-                <span style={font(12, 400, '#555')}>John Doe (Learner)</span>
-                <span style={font(11, 400, '#aaa')}>2025/03/03</span>
+                <span style={font(12, 400, '#555')}>{learnerName} (Learner)</span>
+                <span style={font(11, 400, '#aaa')}>{today}</span>
               </div>
             </div>
             <p style={{ ...font(11, 400, '#888'), margin: '6px 0 0 24px' }}>I agree that the information provided here is an accurate account of what has taken place.</p>
@@ -183,13 +202,20 @@ function CreateExitReviewInner() {
         {/* Footer */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderTop: '1px solid rgba(28,28,28,0.08)' }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleSave} disabled={saving} style={{ padding: '9px 22px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: '9px 22px', background: saving ? '#555' : '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}
+            >
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button onClick={() => router.back()} style={{ padding: '9px 22px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}>Cancel</button>
+            <button onClick={() => router.back()} style={{ padding: '9px 22px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}>
+              Cancel
+            </button>
           </div>
-          <button style={{ padding: '9px 22px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}>Delete</button>
         </div>
+
+        {error && <p style={{ ...font(12, 400, '#ef4444'), padding: '0 16px 12px' }}>{error}</p>}
       </div>
     </div>
   )

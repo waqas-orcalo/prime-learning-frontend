@@ -2,88 +2,53 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import { apiFetch } from '@/lib/api-client'
+import { useLearningSupportList } from '@/hooks/use-learning-support'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
-const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
-const iconPaperClip = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none"><path d="M11.5 6.5L6.5 11.5a3.5 3.5 0 01-5-5l5.5-5.5a2 2 0 012.83 2.83L5.33 9.33a.5.5 0 01-.7-.7L9 4.27" stroke="#888" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconBack  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconCal   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none"><rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#888" stroke-width="1.2"/><path d="M1 5.5h12M4.5 1v2M9.5 1v2" stroke="#888" stroke-width="1.2" stroke-linecap="round"/></svg>`)
+const iconCaret = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const iconPlus  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M6 1v10M1 6h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`)
+const iconFile  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"><path d="M4 2h6l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#1c1c1c" stroke-width="1.3"/><path d="M9 2v4h4" stroke="#1c1c1c" stroke-width="1.3" stroke-linejoin="round"/></svg>`)
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
   ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, lineHeight: '20px', ...extra } as React.CSSProperties)
 
-const SECTION_HDR: React.CSSProperties = {
-  padding: '10px 16px', background: '#f0f0f0', ...font(13, 600),
-  borderBottom: '1px solid rgba(28,28,28,0.08)'
-}
+const FORM_OPTIONS = ['5.Learning Support Form']
+const TH: React.CSSProperties = { padding: '10px 14px', ...font(12, 500, '#555'), textAlign: 'left', borderBottom: '1px solid rgba(28,28,28,0.1)', background: '#fafafa', whiteSpace: 'nowrap' }
+const TD: React.CSSProperties = { padding: '12px 14px', ...font(12), borderBottom: '1px solid rgba(28,28,28,0.07)', verticalAlign: 'middle' }
 
-const INPUT_STYLE: React.CSSProperties = {
-  width: '100%', padding: '8px 12px', border: '1px solid rgba(28,28,28,0.15)',
-  borderRadius: 6, outline: 'none', ...font(13), background: '#fff', boxSizing: 'border-box'
-}
-
-const YES_NO_OPTIONS = ['No/False', 'Yes/True']
-
-function SelectInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function SkeletonRow() {
   return (
-    <div style={{ position: 'relative' }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ ...INPUT_STYLE, appearance: 'none', paddingRight: 28, cursor: 'pointer' }}
-      >
-        {YES_NO_OPTIONS.map(o => <option key={o}>{o}</option>)}
-      </select>
-      <svg width="12" height="12" viewBox="0 0 12 12" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-        <path d="M2 4.5l4 4 4-4" stroke="#888" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    </div>
+    <tr>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <td key={i} style={TD}>
+          <div style={{ height: 14, background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)', backgroundSize: '200% 100%', borderRadius: 4, animation: 'shimmer 1.4s infinite', width: i === 2 ? '80%' : '60%' }} />
+        </td>
+      ))}
+    </tr>
   )
 }
 
-interface FormData {
-  monthlyReview: string
-  threeMonthlyReview: string
-  changesNotes: string
-  activityTracker: string
-  reasonForStopping: string
-  tutorConfirmationA: string
-  tutorConfirmationB: string
-  learnerConfirmation: string
-}
-
-const INIT: FormData = {
-  monthlyReview: 'No/False',
-  threeMonthlyReview: 'No/False',
-  changesNotes: '',
-  activityTracker: '',
-  reasonForStopping: '',
-  tutorConfirmationA: 'No/False',
-  tutorConfirmationB: 'No/False',
-  learnerConfirmation: 'No/False',
-}
-
-function LearningSupportFormInner() {
+function LearningSupportListInner() {
   const router = useRouter()
-  const { data: session } = useSession()
-  const [form, setForm] = useState<FormData>(INIT)
-  const [saving, setSaving] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
+  const [formFilter, setFormFilter] = useState(FORM_OPTIONS[0])
+  const [dropOpen, setDropOpen] = useState(false)
 
-  const set = (k: keyof FormData) => (val: string) => setForm(f => ({ ...f, [k]: val }))
+  const { data, isLoading, isError } = useLearningSupportList({
+    dateFrom: dateFrom || undefined,
+    dateTo:   dateTo   || undefined,
+  })
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const token = (session?.user as any)?.accessToken
-      if (token) await apiFetch('/forms/learning-support', token, { method: 'POST', body: JSON.stringify(form) }).catch(() => {})
-      router.push('/dashboard')
-    } finally { setSaving(false) }
-  }
+  const instances = data?.data ?? []
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 860, ...FF }}>
-      {/* Header */}
+    <div style={{ padding: '24px 28px', maxWidth: 1100, ...FF }}>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}>
           <img src={iconBack} width={32} height={32} alt="Back" />
@@ -92,117 +57,137 @@ function LearningSupportFormInner() {
       </div>
 
       <div style={{ border: '1px solid rgba(28,28,28,0.12)', borderRadius: 12, overflow: 'hidden' }}>
-
-        {/* ── Section 1: Learning Support Documents ── */}
-        <div style={SECTION_HDR}>1) Learning Support Documents</div>
-        <div style={{ padding: '16px', borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px', background: '#fafafa', border: '1px dashed rgba(28,28,28,0.15)', borderRadius: 8 }}>
-            <img src={iconPaperClip} width={14} height={14} alt="" />
-            <span style={font(12, 400, '#888')}>Nothing is attached. Please Attach Learning Support Plan</span>
-            <label style={{ marginLeft: 'auto', padding: '5px 14px', background: '#1c1c1c', color: '#fff', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff') }}>
-              <input type="file" style={{ display: 'none' }} accept=".pdf,.doc,.docx" />
-              Attach file
-            </label>
-          </div>
-        </div>
-
-        {/* ── Section 2: When will the support plan be reviewed? ── */}
-        <div style={SECTION_HDR}>2) When will the support plan be reviewed?</div>
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-          <div style={{ padding: '0 0 12px', borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 4px', lineHeight: '18px' }}>Regular Learning Support reviews to take place with the learner</p>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 4px', lineHeight: '18px' }}>Normal expectation would be to update the learning support plan on a monthly basis if support is being provided.</p>
-            <p style={{ ...font(12, 400, '#555'), margin: 0, lineHeight: '18px' }}>If a learner refuses additional Learning Support then the plan will need to be reviewed every three month to take into account any changes in the learners circumstances.</p>
-          </div>
-          <div>
-            <label style={{ ...font(12, 500), display: 'block', marginBottom: 6 }}>Monthly support review</label>
-            <SelectInput value={form.monthlyReview} onChange={set('monthlyReview')} />
-          </div>
-          <div>
-            <label style={{ ...font(12, 500), display: 'block', marginBottom: 6 }}>3 monthly support review</label>
-            <SelectInput value={form.threeMonthlyReview} onChange={set('threeMonthlyReview')} />
-          </div>
-        </div>
-
-        {/* ── Section 3: Monthly Support Review ── */}
-        <div style={SECTION_HDR}>3) Monthly Support Review</div>
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14, borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-          <div>
-            <label style={{ ...font(12, 500), display: 'block', marginBottom: 6 }}>Have there been any changes too the plan?</label>
-            <input
-              value={form.changesNotes}
-              onChange={e => setForm(f => ({ ...f, changesNotes: e.target.value }))}
-              style={INPUT_STYLE}
-              placeholder=""
-            />
-          </div>
-          <div>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 4px', lineHeight: '18px' }}>Additional Learning Support given to learners must be logged below on the Activity Tracker</p>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 8px', lineHeight: '18px' }}>To use the tracker, click on the green + button to add a new entry</p>
-            <label style={{ ...font(12, 500), display: 'block', marginBottom: 6 }}>Activity Tracker</label>
-            <input
-              value={form.activityTracker}
-              onChange={e => setForm(f => ({ ...f, activityTracker: e.target.value }))}
-              style={INPUT_STYLE}
-              placeholder=""
-            />
-          </div>
-          <div>
-            <label style={{ ...font(12, 500), display: 'block', marginBottom: 6 }}>Reason for stopping support</label>
-            <input
-              value={form.reasonForStopping}
-              onChange={e => setForm(f => ({ ...f, reasonForStopping: e.target.value }))}
-              style={INPUT_STYLE}
-              placeholder=""
-            />
-          </div>
-        </div>
-
-        {/* ── Section 4: Tutor Confirmation ── */}
-        <div style={SECTION_HDR}>4) Tutor Confirmation of the plan</div>
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16, borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-          <div>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 8px', lineHeight: '18px' }}>
-              a) I am satisfied the adjustments made to the learner's programme are required and deemed reasonable in order to address their barriers to learning and that there is a delivery cost in providing these. Without the support above it is thought the learner would be unlikely to achieve or would face significant difficulties achieving or remaining on programme. Learning Support Funding (LSF) to be claimed
-            </p>
-            <SelectInput value={form.tutorConfirmationA} onChange={set('tutorConfirmationA')} />
-          </div>
-          <div>
-            <p style={{ ...font(12, 400, '#555'), margin: '0 0 8px', lineHeight: '18px' }}>
-              b) I am satisfied that the planned adjustments would be beneficial to the learner though these will not result in additional costs being incurred and / or the needs affected would not have material impact on ability to successfully engage in learning day to day. LSF Funding will not be claimed.
-            </p>
-            <SelectInput value={form.tutorConfirmationB} onChange={set('tutorConfirmationB')} />
-          </div>
-        </div>
-
-        {/* ── Section 5: Learner Confirmation ── */}
-        <div style={SECTION_HDR}>5) Learner confirmation of the plan</div>
-        <div style={{ padding: '16px', borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
-          <p style={{ ...font(12, 400, '#555'), margin: '0 0 8px', lineHeight: '18px' }}>
-            I agree that the adjustments identified are necessary and without which I believe the completion of my apprenticeship would be at risk and that the activities identified are reasonable in order to address my barriers to learning. I agree that this information can be shared with The Prime College and my Employer.
-          </p>
-          <SelectInput value={form.learnerConfirmation} onChange={set('learnerConfirmation')} />
-        </div>
-
-        {/* Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', gap: 12 }}>
+        {/* Card header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#fafafa', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
+          <span style={font(14, 600)}>Instances</span>
           <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ padding: '9px 22px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}
+            onClick={() => router.push('/forms/learning-support/create')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(12, 500, '#fff') }}
           >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            onClick={() => router.back()}
-            style={{ padding: '9px 22px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}
-          >
-            Cancel
+            <img src={iconPlus} width={12} height={12} alt="" />
+            Create New Instances +
           </button>
         </div>
+
+        {/* Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', flexWrap: 'wrap' }}>
+          {([
+            { label: 'Date From:', val: dateFrom, set: setDateFrom },
+            { label: 'Date To:',   val: dateTo,   set: setDateTo   },
+          ] as const).map(({ label, val, set }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={font(12, 500)}>{label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, padding: '4px 8px', background: '#fff' }}>
+                <input
+                  type="date"
+                  value={val}
+                  onChange={e => set(e.target.value)}
+                  style={{ border: 'none', outline: 'none', ...font(12), background: 'transparent', width: 120 }}
+                />
+                <img src={iconCal} width={14} height={14} alt="" />
+              </div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={font(12, 500)}>Form:</span>
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setDropOpen(o => !o)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, background: '#fff', cursor: 'pointer', ...font(12) }}
+              >
+                {formFilter}
+                <img src={iconCaret} width={12} height={12} alt="" />
+              </button>
+              {dropOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, marginTop: 4, background: '#fff', border: '1px solid rgba(28,28,28,0.12)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', minWidth: 240 }}>
+                  {FORM_OPTIONS.map(o => (
+                    <button key={o} onClick={() => { setFormFilter(o); setDropOpen(false) }} style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', ...font(12, formFilter === o ? 600 : 400) }}>
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Error banner */}
+        {isError && (
+          <div style={{ padding: '10px 16px', background: '#fef2f2', borderBottom: '1px solid rgba(239,68,68,0.2)' }}>
+            <span style={font(12, 400, '#ef4444')}>Failed to load learning support forms. Please try again.</span>
+          </div>
+        )}
+
+        {/* Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={TH}>Form Name</th>
+                <th style={TH}>Learner Name</th>
+                <th style={TH}>Instance Name</th>
+                <th style={TH}>Date Created</th>
+                <th style={TH}>Date Modified</th>
+                <th style={{ ...TH, textAlign: 'center' }}>Signatures</th>
+                <th style={{ ...TH, textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : instances.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '40px' }}>
+                    No learning support forms found.
+                  </td>
+                </tr>
+              ) : instances.map((row, i) => (
+                <tr
+                  key={row._id || i}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
+                  <td style={TD}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <img src={iconFile} width={14} height={14} alt="" />
+                      {row.formName}
+                    </span>
+                  </td>
+                  <td style={TD}>{row.learnerName ?? ''}</td>
+                  <td style={{ ...TD, maxWidth: 260 }}>
+                    <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {row.instanceName}
+                    </span>
+                  </td>
+                  <td style={TD}>{row.dateCreated ?? ''}</td>
+                  <td style={TD}>{row.dateModified ?? ''}</td>
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    <input type="checkbox" checked={!!row.signed} onChange={() => {}} style={{ width: 14, height: 14, cursor: 'default' }} />
+                  </td>
+                  <td style={{ ...TD, textAlign: 'center' }}>
+                    <button
+                      onClick={() => router.push(`/forms/learning-support/${row._id}`)}
+                      style={{ padding: '5px 18px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff') }}
+                    >
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {data?.pagination && data.pagination.total > 0 && (
+          <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(28,28,28,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+            <span style={font(11, 400, '#888')}>
+              Showing {instances.length} of {data.pagination.total} records
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export default function Page() { return <Suspense><LearningSupportFormInner /></Suspense> }
+export default function Page() { return <Suspense><LearningSupportListInner /></Suspense> }
