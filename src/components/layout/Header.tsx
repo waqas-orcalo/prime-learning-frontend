@@ -333,6 +333,27 @@ function SetStatusModal({
   )
 }
 
+// ── Notification types ─────────────────────────────────────────────────────
+interface Notification {
+  _id: string
+  type: 'TASK_ASSIGNED' | 'COURSE_ENROLLED'
+  title: string
+  message: string
+  read: boolean
+  createdAt?: string
+}
+
+function timeAgo(dateStr?: string) {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 // ── Header ────────────────────────────────────────────────────────────────────
 export default function Header() {
   const pathname  = usePathname()
@@ -352,6 +373,10 @@ export default function Header() {
     firstName?: string; lastName?: string; avatarUrl?: string | null; role?: string
   } | null>(null)
 
+  // ── Notifications state ──
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+
   const headerRef = useRef<HTMLDivElement>(null)
   const crumbs    = BREADCRUMB_MAP[pathname] ?? ['Dashboards']
 
@@ -370,6 +395,38 @@ export default function Header() {
       })
       .catch(() => {})
   }, [token])
+
+  // Fetch notifications — on mount and every 30s
+  const fetchNotifications = useCallback(() => {
+    if (!token) return
+    apiFetch<any>('/notifications', token)
+      .then(d => {
+        const data = d?.data ?? {}
+        setNotifications(data.notifications ?? [])
+        setUnreadCount(data.unreadCount ?? 0)
+      })
+      .catch(() => {})
+  }, [token])
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [fetchNotifications])
+
+  const handleMarkAllRead = async () => {
+    if (!token) return
+    await apiFetch('/notifications/read-all', token, { method: 'PATCH' }).catch(() => {})
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    setUnreadCount(0)
+  }
+
+  const handleMarkRead = async (id: string) => {
+    if (!token) return
+    await apiFetch(`/notifications/${id}/read`, token, { method: 'PATCH' }).catch(() => {})
+    setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n))
+    setUnreadCount(prev => Math.max(0, prev - 1))
+  }
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -473,37 +530,80 @@ export default function Header() {
             )}
           </div>
 
-          {/* Messages */}
+          {/* Notifications bell */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => toggle('messages')} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: openDropdown === 'messages' ? 'rgba(28,28,28,0.08)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button
+              onClick={() => toggle('notifications')}
+              style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: openDropdown === 'notifications' ? 'rgba(28,28,28,0.08)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
               <BellIcon />
             </button>
-            <div style={{ position: 'absolute', top: '-2px', right: '-4px', width: '14px', height: '14px', borderRadius: '7px', backgroundColor: '#ff4747', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-              <span style={{ fontFamily: FF, fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>3</span>
-            </div>
-            {openDropdown === 'messages' && (
-              <div style={{ position: 'absolute', top: '44px', right: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', border: '1px solid rgba(28,28,28,0.1)', width: '300px', zIndex: 200, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
-                  <span style={{ ...font(14, 700) }}>Messages</span>
+            {unreadCount > 0 && (
+              <div style={{ position: 'absolute', top: '-2px', right: '-4px', minWidth: '14px', height: '14px', borderRadius: '7px', backgroundColor: '#ff4747', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', padding: '0 3px' }}>
+                <span style={{ fontFamily: FF, fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+              </div>
+            )}
+            {openDropdown === 'notifications' && (
+              <div style={{ position: 'absolute', top: '44px', right: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', border: '1px solid rgba(28,28,28,0.1)', width: '320px', zIndex: 200, overflow: 'hidden' }}>
+                {/* Header row */}
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ ...font(14, 700) }}>Notifications {unreadCount > 0 && <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)') }}>({unreadCount} new)</span>}</span>
+                  {unreadCount > 0 && (
+                    <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', ...font(12, 500, '#9747ff'), padding: 0 }}>
+                      Mark all read
+                    </button>
+                  )}
                 </div>
-                {[
-                  { name: 'Sarah Connor', msg: 'Your assignment is due soon', time: '2h ago' },
-                  { name: 'Mike Johnson', msg: 'Great progress this week!', time: '5h ago' },
-                ].map((m, i) => (
-                  <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', gap: '10px', cursor: 'pointer' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ ...font(11, 700, '#fff') }}>{m.name[0]}</span>
+                {/* Notification list */}
+                <div style={{ maxHeight: '360px', overflowY: 'auto' as const }}>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center' as const }}>
+                      <span style={{ ...font(13, 400, 'rgba(28,28,28,0.4)') }}>No notifications yet</span>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ ...font(13, 600), lineHeight: '18px' }}>{m.name}</div>
-                      <div style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.msg}</div>
-                    </div>
-                    <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)'), flexShrink: 0 }}>{m.time}</span>
-                  </div>
-                ))}
-                <button onClick={() => { router.push('/messages'); setOpenDropdown(null) }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' as const, ...font(13, 600) }}>
-                  Show All Messages →
-                </button>
+                  ) : (
+                    notifications.map(n => (
+                      <div
+                        key={n._id}
+                        onClick={() => handleMarkRead(n._id)}
+                        style={{
+                          padding: '12px 16px',
+                          borderBottom: '1px solid rgba(28,28,28,0.06)',
+                          display: 'flex', gap: '10px', cursor: 'pointer',
+                          backgroundColor: n.read ? '#fff' : 'rgba(151,71,255,0.04)',
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        {/* Icon dot */}
+                        <div style={{
+                          width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                          backgroundColor: n.type === 'TASK_ASSIGNED' ? 'rgba(255,71,71,0.1)' : 'rgba(151,71,255,0.1)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {n.type === 'TASK_ASSIGNED' ? (
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                              <rect x="3" y="2" width="10" height="13" rx="1.5" stroke={n.read ? 'rgba(28,28,28,0.4)' : '#ff4747'} strokeWidth="1.3"/>
+                              <path d="M5.5 7h5M5.5 9.5h3" stroke={n.read ? 'rgba(28,28,28,0.4)' : '#ff4747'} strokeWidth="1.3" strokeLinecap="round"/>
+                              <path d="M6 2.5h4" stroke={n.read ? 'rgba(28,28,28,0.4)' : '#ff4747'} strokeWidth="1.3" strokeLinecap="round"/>
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                              <path d="M8 2a4 4 0 0 0-4 4v2L3 10h10l-1-2V6a4 4 0 0 0-4-4z" stroke={n.read ? 'rgba(28,28,28,0.4)' : '#9747ff'} strokeWidth="1.3" strokeLinejoin="round"/>
+                              <path d="M6.5 13a1.5 1.5 0 0 0 3 0" stroke={n.read ? 'rgba(28,28,28,0.4)' : '#9747ff'} strokeWidth="1.3" strokeLinecap="round"/>
+                            </svg>
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ ...font(13, n.read ? 400 : 600), lineHeight: '18px' }}>{n.title}</div>
+                          <div style={{ ...font(12, 400, 'rgba(28,28,28,0.55)'), lineHeight: '16px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{n.message}</div>
+                          <div style={{ ...font(11, 400, 'rgba(28,28,28,0.35)'), marginTop: '4px' }}>{timeAgo(n.createdAt)}</div>
+                        </div>
+                        {!n.read && (
+                          <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#9747ff', flexShrink: 0, marginTop: '5px' }} />
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
