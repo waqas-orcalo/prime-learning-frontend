@@ -8,129 +8,148 @@ const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSPro
 
 interface FaqItem { q: string; a: string }
 
-const FAQS: { section: string; items: FaqItem[] }[] = [
-  {
-    section: 'Getting Started',
-    items: [
-      { q: 'How do I set up a new learner?', a: 'Navigate to the Learners section, click "Add Learner", and complete the onboarding form. The learner will receive an invitation email to create their account.' },
-      { q: 'How do I assign tasks to learners?', a: 'Go to the Tasks section, click "Create Task", select the learner from the dropdown, set a due date, and describe the task. The learner will be notified immediately.' },
-    ],
-  },
-  {
-    section: 'Progress Reviews',
-    items: [
-      { q: 'How often should progress reviews be conducted?', a: 'ESFA guidelines recommend a minimum of every 12 weeks. Progress reviews should be documented in the Progress Review Form within the Learner Forms section.' },
-      { q: 'What happens if a learner is falling behind?', a: 'Flag the learner as "At Risk" in their profile, schedule a catch-up session, document an action plan in the Progress Review, and consider contacting the employer if necessary.' },
-    ],
-  },
-  {
-    section: 'Off-The-Job Training',
-    items: [
-      { q: 'How do I record OTJ hours?', a: 'OTJ activities are logged by learners in the Learning Activities section. As a trainer you can verify entries and use the OTJ Training Log in Learner Forms to maintain records.' },
-      { q: 'What counts as off-the-job training?', a: 'Any learning activity undertaken outside of normal working duties that contributes to the apprenticeship standard. This includes training courses, shadowing, mentoring, and relevant industry events.' },
-    ],
-  },
-  {
-    section: 'End Point Assessment',
-    items: [
-      { q: 'When is a learner ready for EPA?', a: 'A learner is ready for EPA when they have completed all mandatory off-the-job training hours, all knowledge, skills and behaviours (KSBs) are assessed as achieved, and a gateway review has been completed.' },
-      { q: 'How do I complete the Gateway Review?', a: 'Access the Gateway Review Checklist in Learner Forms, complete all sections with the learner and their employer present, then submit to the relevant awarding organisation.' },
-    ],
-  },
-  {
-    section: 'Platform Support',
-    items: [
-      { q: 'How do I reset a learner\'s password?', a: 'You can request a password reset from the learner\'s profile page. Alternatively, the learner can use the "Forgot password" option on the login page.' },
-      { q: 'Who do I contact for technical issues?', a: 'For technical platform issues, contact the support team at support@prime-learning.co.uk or use the live chat feature in the bottom-right of the screen.' },
-    ],
-  },
+const FAQS: FaqItem[] = [
+  { q: 'How do I review a learner\'s journal entry?', a: 'Go to Learning Journals in the sidebar. You\'ll see all submitted journal entries. Click on any entry to expand it, read the reflection, and then add your feedback or mark it as reviewed.' },
+  { q: 'How do I assign a task to a learner?', a: 'Navigate to Tasks and click \'Create Task\'. Fill in the task title, description, due date, priority, and select the learner. Click Save to assign it.' },
+  { q: 'What do the learner statuses mean?', a: '\'On Track\' means the learner is progressing as expected. \'Behind\' means they have fallen slightly behind schedule and may need support. \'At Risk\' means they are significantly behind and require immediate intervention.' },
+  { q: 'How do I update a learner\'s scorecard?', a: 'Navigate to Scorecard in the sidebar. You\'ll see the KSB assessment grid for each learner. Click the rating dots to update a learner\'s rating for each competency.' },
+  { q: 'Can I message all my learners at once?', a: 'Currently, messages are sent per conversation. For group announcements, use your platform administrator or the Resources section to post shared information.' },
+  { q: 'How is the \'Overall Progress\' percentage calculated?', a: 'Overall progress reflects the percentage of units marked as completed out of the total required units for the learner\'s programme.' },
 ]
 
-function FaqItem({ item }: { item: FaqItem }) {
+const RESOURCES = [
+  { label: 'Trainer Handbook', desc: 'Complete guide to your role and responsibilities as a trainer.', icon: 'book' },
+  { label: 'EPA Guidelines', desc: 'End Point Assessment guidance and preparation materials.', icon: 'book' },
+  { label: 'KSB Framework Reference', desc: 'Full Knowledge, Skills & Behaviours framework for all programmes.', icon: 'book' },
+  { label: 'Contact Support', desc: 'Reach our helpdesk team for technical or account issues.', icon: 'headset' },
+]
+
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 40 40" width={40} height={40} fill="none" stroke="white" strokeWidth={1.5} style={{ opacity: 0.8 }}>
+      <circle cx="20" cy="20" r="18.5" />
+      <path d="M17.5 15c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5c0 1.15-.8 2.15-1.9 2.45v1.05" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="20" cy="28" r="0.8" fill="white" />
+    </svg>
+  )
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20m-2 8v-8m0 8H6.5a2.5 2.5 0 0 1-2.5-2.5V6a2.5 2.5 0 0 1 2.5-2.5h13.5a2.5 2.5 0 0 1 2.5 2.5v11" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function HeadsetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6M3 18a9 9 0 0 0 18 0M3 18h-2v4a2 2 0 0 0 2 2h2M21 18h2v4a2 2 0 0 1-2 2h-2M9 13a3 3 0 0 0 6 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} style={{ transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
+function FaqItem({ item, index }: { item: FaqItem; index: number }) {
   const [open, setOpen] = useState(false)
   return (
-    <div style={{ border: '1px solid rgba(28,28,28,0.08)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+    <div>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-          borderBottom: open ? '1px solid rgba(28,28,28,0.08)' : 'none',
+          padding: '16px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          borderBottom: index < FAQS.length - 1 ? '1px solid rgba(28,28,28,0.08)' : 'none',
         }}
       >
         <span style={font(14, 500)}>{item.q}</span>
-        <span style={{ fontSize: 18, color: '#888', fontWeight: 300, transition: 'transform 0.2s', transform: open ? 'rotate(45deg)' : 'none', flexShrink: 0, marginLeft: 12 }}>+</span>
+        <span style={{ flexShrink: 0, marginLeft: 16, color: '#888', display: 'flex', alignItems: 'center' }}>
+          <ChevronIcon open={open} />
+        </span>
       </button>
       {open && (
-        <div style={{ padding: '12px 18px 14px' }}>
-          <p style={{ ...font(13, 400, '#444'), margin: 0, lineHeight: 1.7 }}>{item.a}</p>
+        <div style={{ paddingBottom: '16px' }}>
+          <p style={{ ...font(14, 400, '#666'), margin: 0, lineHeight: 1.6 }}>{item.a}</p>
         </div>
       )}
     </div>
   )
 }
 
-export default function HelpCentrePage() {
-  const [search, setSearch] = useState('')
-
-  const filtered = search.trim()
-    ? FAQS.map(s => ({
-        ...s,
-        items: s.items.filter(i =>
-          i.q.toLowerCase().includes(search.toLowerCase()) ||
-          i.a.toLowerCase().includes(search.toLowerCase()),
-        ),
-      })).filter(s => s.items.length > 0)
-    : FAQS
-
+function ResourceItem({ item }: { item: typeof RESOURCES[0] }) {
+  const iconColor = '#1c1c1c'
   return (
-    <div style={{ maxWidth: 800, ...FF }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <h1 style={{ ...font(28, 700), marginBottom: 8 }}>Help Centre</h1>
-        <p style={font(14, 400, '#666')}>Find answers to common questions about using the trainer platform.</p>
+    <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-start', gap: '14px', cursor: 'pointer', transition: 'background-color 0.2s', userSelect: 'none' }}>
+      <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(30,30,45,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: iconColor }}>
+        {item.icon === 'book' ? <BookIcon /> : <HeadsetIcon />}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          <span style={font(14, 600)}>{item.label}</span>
+          <span style={{ opacity: 0.5, display: 'flex', alignItems: 'center', color: '#1c1c1c' }}>
+            <ExternalLinkIcon />
+          </span>
+        </div>
+        <p style={{ ...font(12, 400, '#999'), margin: 0, lineHeight: 1.5 }}>{item.desc}</p>
+      </div>
+    </div>
+  )
+}
+
+export default function HelpCentrePage() {
+  return (
+    <div style={{ maxWidth: '800px', ...FF }}>
+      {/* 1. Hero Card */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', background: '#1c1c1c', padding: '28px', borderRadius: '12px', marginBottom: '32px' }}>
+        <div style={{ flexShrink: 0 }}>
+          <HelpIcon />
+        </div>
+        <div>
+          <h1 style={{ ...font(20, 700, 'white'), margin: 0, marginBottom: '6px' }}>How can we help you?</h1>
+          <p style={{ ...font(14, 400, 'rgba(255,255,255,0.7)'), margin: 0 }}>Browse FAQs, read guides, or contact support below.</p>
+        </div>
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: 32 }}>
-        <input
-          type="text"
-          placeholder="Search help articles..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', padding: '12px 16px',
-            border: '1px solid rgba(28,28,28,0.18)', borderRadius: 10,
-            ...font(14), outline: 'none', background: '#fff', boxSizing: 'border-box',
-          }}
-        />
+      {/* 2. FAQs Section */}
+      <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: '12px', marginBottom: '32px', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(28,28,28,0.1)', background: '#fafbfc' }}>
+          <h2 style={font(15, 600)}>Frequently Asked Questions</h2>
+        </div>
+        <div style={{ padding: '0 20px' }}>
+          {FAQS.map((item, idx) => (
+            <FaqItem key={idx} item={item} index={idx} />
+          ))}
+        </div>
       </div>
 
-      {/* FAQ sections */}
-      {filtered.length === 0
-        ? <p style={{ ...font(14, 400, '#aaa'), textAlign: 'center', padding: '40px 0' }}>No results found for "{search}".</p>
-        : filtered.map(section => (
-          <div key={section.section} style={{ marginBottom: 28 }}>
-            <h2 style={{ ...font(16, 600), marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
-              {section.section}
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {section.items.map(item => <FaqItem key={item.q} item={item} />)}
+      {/* 3. Resources & Support Section */}
+      <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: '12px', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(28,28,28,0.1)', background: '#fafbfc' }}>
+          <h2 style={font(15, 600)}>Resources & Support</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', backgroundColor: 'rgba(28,28,28,0.1)', gap: '1px' }}>
+          {RESOURCES.map((item, idx) => (
+            <div key={idx} style={{ background: 'white' }}>
+              <ResourceItem item={item} />
             </div>
-          </div>
-        ))
-      }
-
-      {/* Contact support */}
-      <div style={{ marginTop: 40, padding: '24px', background: '#f7f9fb', border: '1px solid rgba(28,28,28,0.08)', borderRadius: 12, textAlign: 'center' }}>
-        <p style={font(14, 600)}>Still need help?</p>
-        <p style={{ ...font(13, 400, '#666'), margin: '6px 0 14px' }}>Our support team is available Monday to Friday, 9am – 5pm.</p>
-        <a href="mailto:support@prime-learning.co.uk" style={{
-          display: 'inline-block', padding: '9px 22px', background: '#1c1c1c', color: '#fff',
-          borderRadius: 8, textDecoration: 'none', ...font(13, 500, '#fff'),
-        }}>
-          Contact Support
-        </a>
+          ))}
+        </div>
       </div>
     </div>
   )

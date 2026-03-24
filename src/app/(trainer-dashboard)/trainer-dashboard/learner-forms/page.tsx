@@ -7,14 +7,9 @@ const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
   ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, lineHeight: '1.5', ...extra } as React.CSSProperties)
 
-const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
-const ICON_FILE   = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"><path d="M4 2h6l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#1c1c1c" stroke-width="1.3"/><path d="M9 2v4h4" stroke="#1c1c1c" stroke-width="1.3" stroke-linejoin="round"/></svg>`)
-const ICON_CARET  = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
-
 interface FormTemplate {
   name: string
   desc: string
-  href?: string
   updated: string
 }
 
@@ -25,112 +20,262 @@ interface Category {
 
 const CATEGORIES: Category[] = [
   {
-    title: '1. Initial Assessment & Onboarding',
+    title: 'Initial Assessment & Onboarding',
     forms: [
-      { name: 'Initial Assessment Form',     desc: 'Assess learner starting point and prior knowledge', updated: '12 Mar 2025' },
-      { name: 'Individual Training Plan (ITP)', desc: 'Bespoke training plan tailored to each learner',   updated: '12 Mar 2025' },
-      { name: 'Induction Checklist',          desc: 'Ensure all onboarding steps are completed',          updated: '10 Jan 2025' },
+      { name: 'Initial Assessment Form', desc: 'Assess learner prior knowledge and skills at start of programme', updated: '01/01/2025' },
+      { name: 'Individual Training Plan (ITP)', desc: "Outline the learner's personalised training journey and objectives", updated: '01/01/2025' },
+      { name: 'Induction Checklist', desc: 'Verify all induction activities have been completed for the learner', updated: '01/01/2025' },
     ],
   },
   {
-    title: '2. Progress Reviews',
+    title: 'Progress Reviews',
     forms: [
-      { name: 'Progress Review Form',         desc: 'Regular review of learner progress against targets', updated: '02 Apr 2025', href: '/forms/progress-review' },
-      { name: 'Progress Review Action Plan',  desc: 'Document agreed actions from progress review',       updated: '02 Apr 2025' },
+      { name: 'Progress Review Form', desc: 'Quarterly review of learner progress against KSBs and off-the-job targets', updated: '01/03/2025' },
+      { name: 'Progress Review Action Plan', desc: 'Record agreed actions and targets from the progress review meeting', updated: '01/03/2025' },
     ],
   },
   {
-    title: '3. Off-The-Job Training',
+    title: 'Off-The-Job Training',
     forms: [
-      { name: 'OTJ Training Log',             desc: 'Record off-the-job training hours and activities',   updated: '15 Mar 2025' },
-      { name: 'OTJ Training Declaration',     desc: 'Confirm off-the-job training completion',            updated: '15 Mar 2025' },
+      { name: 'Off-The-Job Training Log', desc: 'Log learner off-the-job training hours and activities', updated: '15/02/2025' },
+      { name: 'Off-The-Job Training Declaration', desc: 'Learner\'s declaration confirming recorded OTJ hours are accurate', updated: '15/02/2025' },
     ],
   },
   {
-    title: '4. Learner Support',
+    title: 'End Point Assessment',
     forms: [
-      { name: 'Learning Support Form',        desc: 'Document any additional support requirements',        updated: '20 Feb 2025', href: '/forms/learning-support' },
-      { name: 'Learner Feedback Form',        desc: 'Capture learner feedback on the programme',           updated: '20 Feb 2025', href: '/forms/learner-feedback' },
+      { name: 'EPA Readiness Declaration', desc: 'Confirm learner is ready for End Point Assessment gateway', updated: '10/03/2025' },
+      { name: 'Gateway Review Checklist', desc: 'Review all gateway requirements prior to EPA referral', updated: '10/03/2025' },
+      { name: 'EPA Confirmation Form', desc: 'Formal confirmation of learner EPA booking and details', updated: '10/03/2025' },
     ],
   },
   {
-    title: '5. End Point Assessment',
+    title: 'Exit & Completion',
     forms: [
-      { name: 'EPA Readiness Declaration',    desc: 'Confirm learner is ready for end point assessment',  updated: '01 May 2025' },
-      { name: 'Gateway Review Checklist',     desc: 'Checklist before progressing to gateway',            updated: '01 May 2025' },
-      { name: 'EPA Confirmation Form',        desc: 'Formal confirmation of EPA booking',                 updated: '01 May 2025' },
-    ],
-  },
-  {
-    title: '6. Exit & Completion',
-    forms: [
-      { name: 'Exit Review Form',             desc: 'Programme evaluation on completion',                 updated: '08 Apr 2025', href: '/forms/exit-review' },
-      { name: 'Learner Withdrawal Form',      desc: 'Process for learner withdrawal from programme',      updated: '08 Apr 2025' },
+      { name: 'Exit Review Form', desc: 'Conduct final review on programme completion or withdrawal', updated: '01/04/2025' },
+      { name: 'Learner Withdrawal Form', desc: 'Record reasons and details for learner programme withdrawal', updated: '01/04/2025' },
     ],
   },
 ]
 
+function FileIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  )
+}
+
+function EyeIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function PrinterIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
+function LeftArrowIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  )
+}
+
 function FormRow({ form, router }: { form: FormTemplate; router: ReturnType<typeof useRouter> }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-      borderBottom: '1px solid rgba(28,28,28,0.05)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 16,
+      padding: '16px 18px',
+      borderBottom: '1px solid rgba(28,28,28,0.08)',
     }}
       onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
       onMouseLeave={e => (e.currentTarget.style.background = '')}
     >
-      <img src={ICON_FILE} width={16} height={16} alt="" style={{ flexShrink: 0, opacity: 0.6 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={font(13, 500)}>{form.name}</div>
-        <div style={{ ...font(11, 400, '#888'), marginTop: 2 }}>{form.desc}</div>
+      {/* Icon container */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 40,
+        height: 40,
+        borderRadius: 6,
+        background: '#e5e5e5',
+        color: '#666',
+        flexShrink: 0,
+      }}>
+        <FileIcon />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <span style={{ ...font(11, 400, '#aaa'), whiteSpace: 'nowrap' }}>Updated {form.updated}</span>
+
+      {/* Text content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={font(14, 600)}>{form.name}</div>
+        <div style={{ ...font(12, 400, '#888'), marginTop: 4 }}>{form.desc}</div>
+      </div>
+
+      {/* Meta column */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: 4,
+        flexShrink: 0,
+      }}>
         <span style={{
-          padding: '2px 8px', borderRadius: 20,
-          background: '#dcfce7', color: '#15803d', ...font(11, 500, '#15803d'),
+          padding: '4px 10px',
+          borderRadius: 16,
+          background: '#dcfce7',
+          color: '#15803d',
+          ...font(11, 500, '#15803d'),
         }}>Available</span>
-        {form.href && (
-          <button
-            onClick={() => router.push(form.href!)}
-            style={{
-              padding: '5px 14px', background: '#1c1c1c', color: '#fff',
-              border: 'none', borderRadius: 6, cursor: 'pointer', ...font(11, 500, '#fff'),
-            }}
-          >
-            Open
-          </button>
-        )}
+        <span style={{ ...font(11, 400, '#999') }}>Updated: {form.updated}</span>
+      </div>
+
+      {/* Action buttons */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        flexShrink: 0,
+      }}>
+        {/* View button */}
+        <button
+          onClick={() => { /* Handle view */ }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 36,
+            height: 36,
+            background: '#1c1c1c',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#333')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#1c1c1c')}
+          title="View"
+        >
+          <EyeIcon />
+        </button>
+
+        {/* Print button */}
+        <button
+          onClick={() => { /* Handle print */ }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 36,
+            height: 36,
+            background: '#fff',
+            color: '#1c1c1c',
+            border: '1px solid rgba(28,28,28,0.18)',
+            borderRadius: 6,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#fafafa'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.25)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#fff'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.18)'
+          }}
+          title="Print"
+        >
+          <PrinterIcon />
+        </button>
+
+        {/* Download button */}
+        <button
+          onClick={() => { /* Handle download */ }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 36,
+            height: 36,
+            background: '#fff',
+            color: '#1c1c1c',
+            border: '1px solid rgba(28,28,28,0.18)',
+            borderRadius: 6,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#fafafa'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.25)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#fff'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.18)'
+          }}
+          title="Download"
+        >
+          <DownloadIcon />
+        </button>
       </div>
     </div>
   )
 }
 
-function CategoryCard({ category, defaultOpen = false, router }: { category: Category; defaultOpen?: boolean; router: ReturnType<typeof useRouter> }) {
-  const [open, setOpen] = useState(defaultOpen)
+function CategoryCard({ category }: { category: Category }) {
   return (
-    <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px', background: '#fafafa', border: 'none', cursor: 'pointer', textAlign: 'left',
-          borderBottom: open ? '1px solid rgba(28,28,28,0.08)' : 'none',
-        }}
-      >
+    <div style={{
+      border: '1px solid rgba(28,28,28,0.1)',
+      borderRadius: 8,
+      overflow: 'hidden',
+      background: '#fff',
+    }}>
+      {/* Category header */}
+      <div style={{
+        padding: '14px 18px',
+        background: '#f5f5f5',
+        borderBottom: '1px solid rgba(28,28,28,0.08)',
+      }}>
         <span style={font(14, 600)}>{category.title}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ ...font(12, 400, '#aaa') }}>{category.forms.length} form{category.forms.length !== 1 ? 's' : ''}</span>
-          <img src={ICON_CARET} width={12} height={12} alt="" style={{ transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }} />
-        </div>
-      </button>
-      {open && category.forms.map(form => <FormRow key={form.name} form={form} router={router} />)}
+      </div>
+
+      {/* Form rows */}
+      {category.forms.map(form => (
+        <FormRow key={form.name} form={form} router={useRouter()} />
+      ))}
     </div>
   )
 }
 
 export default function LearnerFormsPage() {
   const router = useRouter()
+  const [cohort, setCohort] = useState('All Cohorts')
   const [search, setSearch] = useState('')
 
   const filtered: Category[] = search.trim()
@@ -144,33 +289,108 @@ export default function LearnerFormsPage() {
     : CATEGORIES
 
   return (
-    <div style={{ maxWidth: 900, ...FF }}>
-      <h1 style={{ ...font(22, 700), marginBottom: 8 }}>Learner Forms</h1>
-      <p style={{ ...font(13, 400, '#666'), marginBottom: 24 }}>Access, manage and complete all learner-related forms throughout the programme lifecycle.</p>
+    <div style={{ ...FF, minHeight: '100vh', background: '#fff' }}>
+      {/* Back button and header */}
+      <div style={{ padding: '24px 0', display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+        <button
+          onClick={() => router.back()}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: '#1c1c1c',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#fff',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#333')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#1c1c1c')}
+        >
+          <LeftArrowIcon />
+        </button>
 
-      {/* Search */}
-      <div style={{ marginBottom: 24 }}>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ ...font(28, 700), marginBottom: 8 }}>Learner Forms</h1>
+          <p style={{ ...font(14, 400, '#666') }}>Access and manage learner forms across the programme lifecycle</p>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '14px 18px',
+        background: '#fff',
+        border: '1px solid rgba(28,28,28,0.1)',
+        borderRadius: 8,
+        marginBottom: 24,
+      }}>
+        {/* Cohort dropdown */}
+        <label style={{ ...font(13, 500), whiteSpace: 'nowrap' }}>Cohort:</label>
+        <button
+          onClick={() => { /* Handle cohort dropdown */ }}
+          style={{
+            padding: '8px 12px',
+            background: '#fff',
+            border: '1px solid rgba(28,28,28,0.18)',
+            borderRadius: 6,
+            cursor: 'pointer',
+            ...font(13, 400),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+        >
+          {cohort}
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {/* Search input */}
         <input
           type="text"
           placeholder="Search forms..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{
-            width: '100%', maxWidth: 400, padding: '9px 14px',
-            border: '1px solid rgba(28,28,28,0.18)', borderRadius: 8,
-            ...font(13), outline: 'none', background: '#fff', boxSizing: 'border-box',
+            flex: 1,
+            padding: '8px 12px',
+            border: '1px solid rgba(28,28,28,0.18)',
+            borderRadius: 6,
+            ...font(13),
+            outline: 'none',
+            background: '#fff',
+            boxSizing: 'border-box',
           }}
         />
+
+        {/* Search icon */}
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#999', flexShrink: 0 }}>
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
       </div>
 
       {/* Categories */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {filtered.length === 0
-          ? <p style={{ ...font(13, 400, '#aaa'), textAlign: 'center', padding: '40px 0' }}>No forms match your search.</p>
-          : filtered.map((cat, i) => (
-            <CategoryCard key={cat.title} category={cat} defaultOpen={i === 0} router={router} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {filtered.length === 0 ? (
+          <p style={{ ...font(14, 400, '#aaa'), textAlign: 'center', padding: '60px 20px' }}>
+            No forms match your search.
+          </p>
+        ) : (
+          filtered.map(cat => (
+            <CategoryCard key={cat.title} category={cat} />
           ))
-        }
+        )}
       </div>
     </div>
   )
