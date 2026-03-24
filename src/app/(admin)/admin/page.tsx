@@ -488,10 +488,13 @@ function UsersPage({ token }: { token: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // COURSES PAGE
 // ══════════════════════════════════════════════════════════════════════════════
+interface CourseSlide { content: string }
+interface CourseModule { name: string; slides: CourseSlide[] }
 interface CourseRecord {
   _id: string; title: string; description?: string; category?: string;
   modules?: number; duration?: string; status: string; thumbnailEmoji?: string;
-  enrolledUsers?: string[]; createdAt?: string
+  enrolledUsers?: string[]; createdAt?: string;
+  courseModules?: CourseModule[]
 }
 
 const COURSE_EMOJIS = ['📘','📊','🔬','💼','🧪','🎯','🧠','💻','🌐','📐']
@@ -524,9 +527,10 @@ function CoursesPage({ token }: { token: string }) {
   const LIMIT = 12
 
   const [form, setForm] = useState({
-    title: '', description: '', category: '', modules: '', duration: '',
+    title: '', description: '', category: '', duration: '',
     status: 'DRAFT', thumbnailEmoji: '📘'
   })
+  const [courseModules, setCourseModules] = useState<CourseModule[]>([])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -558,25 +562,26 @@ function CoursesPage({ token }: { token: string }) {
   }, [enrollModal, enrollSearch, token])
 
   const openCreate = () => {
-    setForm({ title: '', description: '', category: '', modules: '', duration: '', status: 'DRAFT', thumbnailEmoji: '📘' })
+    setForm({ title: '', description: '', category: '', duration: '', status: 'DRAFT', thumbnailEmoji: '📘' })
+    setCourseModules([])
     setShowCreate(true)
   }
   const openEdit = (c: CourseRecord) => {
     setForm({ title: c.title, description: c.description ?? '', category: c.category ?? '',
-      modules: String(c.modules ?? ''), duration: c.duration ?? '',
-      status: c.status, thumbnailEmoji: c.thumbnailEmoji ?? '📘' })
+      duration: c.duration ?? '', status: c.status, thumbnailEmoji: c.thumbnailEmoji ?? '📘' })
+    setCourseModules(c.courseModules ? c.courseModules.map(m => ({ name: m.name, slides: m.slides.map(s => ({ content: s.content })) })) : [])
     setEditCourse(c)
   }
 
   const handleSave = async () => {
     setSaving(true); setError('')
     try {
-      const body: Record<string, string | number> = {
+      const body: Record<string, any> = {
         title: form.title, status: form.status, thumbnailEmoji: form.thumbnailEmoji,
+        courseModules,
       }
       if (form.description) body.description = form.description
       if (form.category)    body.category    = form.category
-      if (form.modules)     body.modules     = Number(form.modules)
       if (form.duration)    body.duration    = form.duration
 
       const url    = editCourse ? `${apiBase()}/courses/${editCourse._id}` : `${apiBase()}/courses`
@@ -711,25 +716,19 @@ function CoursesPage({ token }: { token: string }) {
                 <input style={inputStyle} value={form.category}
                   onChange={e => setForm(f => ({ ...f, category: e.target.value }))} />
               </Field>
-              <Field label="Modules">
-                <input style={inputStyle} type="number" min="0" value={form.modules}
-                  onChange={e => setForm(f => ({ ...f, modules: e.target.value }))} />
-              </Field>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Duration (e.g. 4.5h)">
                 <input style={inputStyle} value={form.duration}
                   onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
               </Field>
-              <Field label="Status">
-                <select style={inputStyle} value={form.status}
-                  onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                  <option value="DRAFT">Draft</option>
-                  <option value="PUBLISHED">Published</option>
-                  <option value="ARCHIVED">Archived</option>
-                </select>
-              </Field>
             </div>
+            <Field label="Status">
+              <select style={inputStyle} value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+            </Field>
             <Field label="Thumbnail Emoji">
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
                 {COURSE_EMOJIS.map(e => (
@@ -740,6 +739,69 @@ function CoursesPage({ token }: { token: string }) {
                 ))}
               </div>
             </Field>
+
+            {/* ── Module / Slide Builder ── */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ ...font(13, 600, NAVY) }}>Modules &amp; Slides ({courseModules.length} module{courseModules.length !== 1 ? 's' : ''})</span>
+                <button style={btn(true)} onClick={() => setCourseModules(ms => [...ms, { name: `Module ${ms.length + 1}`, slides: [] }])}>
+                  + Add Module
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {courseModules.map((mod, mi) => (
+                  <div key={mi} style={{ border: BORDER, borderRadius: 10, overflow: 'hidden' }}>
+                    {/* Module header */}
+                    <div style={{ background: BG, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        style={{ ...inputStyle, flex: 1, margin: 0 }}
+                        placeholder={`Module ${mi + 1} name`}
+                        value={mod.name}
+                        onChange={e => setCourseModules(ms => ms.map((m, i) => i === mi ? { ...m, name: e.target.value } : m))}
+                      />
+                      <button
+                        onClick={() => setCourseModules(ms => ms.map((m, i) => i === mi ? { ...m, slides: [...m.slides, { content: '' }] } : m))}
+                        style={{ ...btn(true), whiteSpace: 'nowrap' as const, fontSize: 12, padding: '4px 10px', height: 'auto' }}
+                      >+ Slide</button>
+                      <button
+                        onClick={() => setCourseModules(ms => ms.filter((_, i) => i !== mi))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700, padding: '0 4px' }}
+                      >×</button>
+                    </div>
+                    {/* Slides */}
+                    {mod.slides.length > 0 && (
+                      <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {mod.slides.map((slide, si) => (
+                          <div key={si} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                            <div style={{ ...font(11, 500, MUTED), paddingTop: 10, flexShrink: 0, minWidth: 52 }}>
+                              Slide {si + 1}
+                            </div>
+                            <textarea
+                              style={{ ...inputStyle, flex: 1, resize: 'vertical' as const, minHeight: 70, margin: 0 }}
+                              placeholder="Slide content (text)…"
+                              value={slide.content}
+                              onChange={e => setCourseModules(ms => ms.map((m, i) =>
+                                i !== mi ? m : { ...m, slides: m.slides.map((s, j) => j === si ? { content: e.target.value } : s) }
+                              ))}
+                            />
+                            <button
+                              onClick={() => setCourseModules(ms => ms.map((m, i) =>
+                                i !== mi ? m : { ...m, slides: m.slides.filter((_, j) => j !== si) }
+                              ))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700, padding: '6px 4px' }}
+                            >×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {mod.slides.length === 0 && (
+                      <div style={{ padding: '8px 12px', ...font(12, 400, MUTED) }}>No slides yet — click "+ Slide" to add one.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {error && <div style={{ ...font(13, 400, RED) }}>{error}</div>}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
               <button style={btn()} onClick={() => { setShowCreate(false); setEditCourse(null) }}>Cancel</button>
