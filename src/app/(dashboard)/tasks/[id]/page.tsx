@@ -331,6 +331,129 @@ export default function TaskDetailPage() {
   const [toast, setToast] = useState('')
 
   const isAdmin = ['TRAINER', 'ORG_ADMIN', 'SUPER_ADMIN'].includes((session?.user as any)?.role)
+  const currentUserName = `${(session?.user as any)?.firstName ?? ''} ${(session?.user as any)?.lastName ?? ''}`.trim() || (session?.user?.email ?? 'You')
+
+  // ── Feedback & Comments state ─────────────────────────────────────────────
+  const [comments, setComments] = useState<any[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
+
+  const loadComments = useCallback(async () => {
+    if (!token || !id) return
+    setCommentsLoading(true)
+    try {
+      const res = await apiFetch<any>(`/learning-activities/feedback-comments/activity/${id}`, token)
+      setComments(res?.data ?? [])
+    } catch { setComments([]) } finally { setCommentsLoading(false) }
+  }, [token, id])
+
+  const handlePostComment = async () => {
+    if (!token || !newComment.trim()) return
+    setPostingComment(true)
+    try {
+      await apiFetch('/learning-activities/feedback-comments', token, {
+        method: 'POST',
+        body: JSON.stringify({ learningActivityId: id, content: newComment.trim(), type: 'COMMENT' }),
+      })
+      setNewComment('')
+      await loadComments()
+    } catch (err: any) {
+      setToast(err?.message ?? 'Failed to post comment')
+      setTimeout(() => setToast(''), 3000)
+    } finally { setPostingComment(false) }
+  }
+
+  // ── Timesheet state ───────────────────────────────────────────────────────
+  const [timesheetEntries, setTimesheetEntries] = useState<any[]>([])
+  const [timesheetLoading, setTimesheetLoading] = useState(false)
+  const [tsForm, setTsForm] = useState({ category: 'LEARNING_ACTIVITY', dateFrom: '', dateTo: '', timeMinutes: '', description: '', offJob: true })
+  const [savingTs, setSavingTs] = useState(false)
+  const [showTsForm, setShowTsForm] = useState(false)
+
+  const TIMESHEET_CATEGORIES = [
+    'CLASSROOM_DELIVERY','COMPETITION','LEARNING_ACTIVITY','WORKSHOP',
+    'E_LEARNING','OBSERVATION','MENTORING','SELF_DIRECTED_STUDY','ONLINE_COURSE',
+  ]
+
+  const loadTimesheetEntries = useCallback(async () => {
+    if (!token || !id) return
+    setTimesheetLoading(true)
+    try {
+      const res = await apiFetch<any>(`/learning-activities/timesheet/activity/${id}`, token)
+      setTimesheetEntries(res?.data ?? [])
+    } catch { setTimesheetEntries([]) } finally { setTimesheetLoading(false) }
+  }, [token, id])
+
+  const handleSaveTimesheetEntry = async () => {
+    if (!token || !tsForm.dateFrom || !tsForm.dateTo || !tsForm.timeMinutes) return
+    setSavingTs(true)
+    try {
+      await apiFetch('/learning-activities/timesheet', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          learningActivityId: id,
+          category: tsForm.category,
+          dateFrom: tsForm.dateFrom,
+          dateTo: tsForm.dateTo,
+          timeMinutes: Number(tsForm.timeMinutes),
+          description: tsForm.description,
+          offJob: tsForm.offJob,
+        }),
+      })
+      setTsForm({ category: 'LEARNING_ACTIVITY', dateFrom: '', dateTo: '', timeMinutes: '', description: '', offJob: true })
+      setShowTsForm(false)
+      setToast('Timesheet entry added.')
+      setTimeout(() => setToast(''), 3000)
+      await loadTimesheetEntries()
+    } catch (err: any) {
+      setToast(err?.message ?? 'Failed to save timesheet entry')
+      setTimeout(() => setToast(''), 3000)
+    } finally { setSavingTs(false) }
+  }
+
+  // ── Declaration state ─────────────────────────────────────────────────────
+  const [declaration, setDeclaration] = useState<any>(null)
+  const [declarationLoading, setDeclarationLoading] = useState(false)
+  const [savingDeclaration, setSavingDeclaration] = useState(false)
+  const [declForm, setDeclForm] = useState({ learnerAgreed: false, agreedToTerms: false, learnerSignature: '' })
+
+  const loadDeclaration = useCallback(async () => {
+    if (!token || !id) return
+    setDeclarationLoading(true)
+    try {
+      const res = await apiFetch<any>(`/learning-activities/declaration/${id}`, token)
+      const d = res?.data
+      if (d) {
+        setDeclaration(d)
+        setDeclForm({ learnerAgreed: d.learnerAgreed ?? false, agreedToTerms: d.agreedToTerms ?? false, learnerSignature: d.learnerSignature ?? '' })
+      }
+    } catch { /* no existing declaration */ } finally { setDeclarationLoading(false) }
+  }, [token, id])
+
+  const handleSaveDeclaration = async () => {
+    if (!token) return
+    setSavingDeclaration(true)
+    try {
+      const res = await apiFetch<any>(`/learning-activities/declaration/${id}`, token, {
+        method: 'POST',
+        body: JSON.stringify(declForm),
+      })
+      setDeclaration(res?.data)
+      setToast('Declaration saved.')
+      setTimeout(() => setToast(''), 3000)
+    } catch (err: any) {
+      setToast(err?.message ?? 'Failed to save declaration')
+      setTimeout(() => setToast(''), 3000)
+    } finally { setSavingDeclaration(false) }
+  }
+
+  // Load tab data on tab switch
+  useEffect(() => {
+    if (activeTab === 'feedback') loadComments()
+    if (activeTab === 'timesheet') loadTimesheetEntries()
+    if (activeTab === 'declaration') loadDeclaration()
+  }, [activeTab, loadComments, loadTimesheetEntries, loadDeclaration])
 
   const loadTask = useCallback(async () => {
     if (!token || !id) return
@@ -833,21 +956,207 @@ export default function TaskDetailPage() {
                   </div>
                 </div>
               </>
-            ) : (
-              /* Other tabs: coming soon */
-              <div style={{
-                flex: 1, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                padding: '60px 20px', gap: '8px',
-              }}>
-                <span style={font(16, 600, 'rgba(28,28,28,0.3)')}>
-                  {INFO_TABS.find(t => t.key === activeTab)?.label}
-                </span>
-                <span style={font(14, 400, 'rgba(28,28,28,0.35)', { textAlign: 'center' })}>
-                  This section is coming soon.
-                </span>
+            ) : activeTab === 'feedback' ? (
+              /* ── Feedback & Comments ─────────────────────────────────────── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+                {commentsLoading ? (
+                  <div style={{ padding: '32px', textAlign: 'center', ...font(13, 400, 'rgba(28,28,28,0.4)') }}>Loading comments…</div>
+                ) : comments.length === 0 ? (
+                  <div style={{ padding: '32px', textAlign: 'center', ...font(13, 400, 'rgba(28,28,28,0.35)') }}>No comments yet. Be the first to add one.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '280px', overflowY: 'auto' as const, paddingRight: '4px' }}>
+                    {comments.map((c: any) => {
+                      const name = c.createdBy?.firstName ? `${c.createdBy.firstName} ${c.createdBy.lastName ?? ''}`.trim() : 'User'
+                      const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+                      const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
+                      return (
+                        <div key={c._id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1c1c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={font(11, 600, '#fff')}>{initials}</span>
+                          </div>
+                          <div style={{ flex: 1, backgroundColor: 'rgba(28,28,28,0.04)', borderRadius: '8px', padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={font(13, 600, '#1c1c1c')}>{name}</span>
+                              <span style={font(11, 400, 'rgba(28,28,28,0.4)')}>{date}</span>
+                            </div>
+                            <span style={font(13, 400, '#1c1c1c')}>{c.content}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {/* New comment input */}
+                <div style={{ borderTop: '1px solid rgba(28,28,28,0.08)', paddingTop: '16px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1c1c1c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={font(11, 600, '#fff')}>{currentUserName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'ME'}</span>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
+                    <textarea
+                      value={newComment}
+                      onChange={e => setNewComment(e.target.value)}
+                      placeholder="Write a comment…"
+                      rows={3}
+                      style={{ width: '100%', resize: 'vertical' as const, border: '1px solid rgba(28,28,28,0.15)', borderRadius: '8px', padding: '8px 12px', ...font(13, 400, '#1c1c1c'), outline: 'none', boxSizing: 'border-box' as const }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={handlePostComment}
+                        disabled={postingComment || !newComment.trim()}
+                        style={{ backgroundColor: postingComment || !newComment.trim() ? 'rgba(28,28,28,0.3)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: postingComment || !newComment.trim() ? 'default' : 'pointer' }}
+                      >
+                        <span style={font(13, 500, '#fff')}>{postingComment ? 'Posting…' : 'Post Comment'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+
+            ) : activeTab === 'timesheet' ? (
+              /* ── Timesheet ───────────────────────────────────────────────── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={font(14, 600, '#1c1c1c')}>Time Entries</span>
+                  <button onClick={() => setShowTsForm(v => !v)} style={{ backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer' }}>
+                    <span style={font(13, 500, '#fff')}>{showTsForm ? 'Cancel' : '+ Log Time'}</span>
+                  </button>
+                </div>
+
+                {showTsForm && (
+                  <div style={{ backgroundColor: 'rgba(28,28,28,0.03)', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column' as const, gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Date From</label>
+                        <input type="date" value={tsForm.dateFrom} onChange={e => setTsForm(f => ({ ...f, dateFrom: e.target.value }))}
+                          style={{ display: 'block', width: '100%', marginTop: '4px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '6px', padding: '6px 10px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const }} />
+                      </div>
+                      <div>
+                        <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Date To</label>
+                        <input type="date" value={tsForm.dateTo} onChange={e => setTsForm(f => ({ ...f, dateTo: e.target.value }))}
+                          style={{ display: 'block', width: '100%', marginTop: '4px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '6px', padding: '6px 10px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const }} />
+                      </div>
+                      <div>
+                        <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Category</label>
+                        <select value={tsForm.category} onChange={e => setTsForm(f => ({ ...f, category: e.target.value }))}
+                          style={{ display: 'block', width: '100%', marginTop: '4px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '6px', padding: '6px 10px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const, backgroundColor: '#fff' }}>
+                          {TIMESHEET_CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Duration (minutes)</label>
+                        <input type="number" min="1" value={tsForm.timeMinutes} onChange={e => setTsForm(f => ({ ...f, timeMinutes: e.target.value }))}
+                          placeholder="e.g. 60"
+                          style={{ display: 'block', width: '100%', marginTop: '4px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '6px', padding: '6px 10px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const }} />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Description (optional)</label>
+                      <input type="text" value={tsForm.description} onChange={e => setTsForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="What did you work on?"
+                        style={{ display: 'block', width: '100%', marginTop: '4px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '6px', padding: '6px 10px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="checkbox" id="offJob" checked={tsForm.offJob} onChange={e => setTsForm(f => ({ ...f, offJob: e.target.checked }))} />
+                      <label htmlFor="offJob" style={font(13, 400, '#1c1c1c')}>Off-the-job training</label>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={handleSaveTimesheetEntry} disabled={savingTs || !tsForm.dateFrom || !tsForm.dateTo || !tsForm.timeMinutes}
+                        style={{ backgroundColor: savingTs ? 'rgba(28,28,28,0.3)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: savingTs ? 'default' : 'pointer' }}>
+                        <span style={font(13, 500, '#fff')}>{savingTs ? 'Saving…' : 'Save Entry'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {timesheetLoading ? (
+                  <div style={{ textAlign: 'center', padding: '20px', ...font(13, 400, 'rgba(28,28,28,0.4)') }}>Loading entries…</div>
+                ) : timesheetEntries.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', ...font(13, 400, 'rgba(28,28,28,0.35)') }}>No time entries logged for this task yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px', maxHeight: '240px', overflowY: 'auto' as const }}>
+                    {timesheetEntries.map((e: any) => {
+                      const mins = e.timeMinutes ?? 0
+                      const hrs = Math.floor(mins / 60); const rem = mins % 60
+                      const duration = hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`
+                      return (
+                        <div key={e._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', backgroundColor: 'rgba(28,28,28,0.03)', borderRadius: '8px', border: '1px solid rgba(28,28,28,0.08)' }}>
+                          <div>
+                            <div style={font(13, 600, '#1c1c1c')}>{(e.category ?? '').replace(/_/g, ' ')}</div>
+                            {e.description && <div style={font(12, 400, 'rgba(28,28,28,0.5)')}>{e.description}</div>}
+                            <div style={font(11, 400, 'rgba(28,28,28,0.4)')}>{formatDate(e.dateFrom)} → {formatDate(e.dateTo)}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' as const }}>
+                            <div style={font(14, 700, '#1c1c1c')}>{duration}</div>
+                            {e.offJob && <div style={font(10, 500, '#4aa785')}>OTJ</div>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+            ) : activeTab === 'declaration' ? (
+              /* ── Declaration & Signatures ────────────────────────────────── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
+                {declarationLoading ? (
+                  <div style={{ textAlign: 'center', padding: '32px', ...font(13, 400, 'rgba(28,28,28,0.4)') }}>Loading declaration…</div>
+                ) : (
+                  <>
+                    <div style={{ backgroundColor: 'rgba(28,28,28,0.03)', borderRadius: '10px', padding: '16px', border: '1px solid rgba(28,28,28,0.08)' }}>
+                      <div style={{ ...font(13, 600, '#1c1c1c'), marginBottom: '12px' }}>Learner Declaration</div>
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={declForm.learnerAgreed} onChange={e => setDeclForm(f => ({ ...f, learnerAgreed: e.target.checked }))} style={{ marginTop: '2px', flexShrink: 0 }} />
+                          <span style={font(13, 400, '#1c1c1c')}>I confirm that all evidence submitted is my own work and is an accurate reflection of my competence and knowledge.</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={declForm.agreedToTerms} onChange={e => setDeclForm(f => ({ ...f, agreedToTerms: e.target.checked }))} style={{ marginTop: '2px', flexShrink: 0 }} />
+                          <span style={font(13, 400, '#1c1c1c')}>I agree to the terms and conditions of the programme, including the assessment policies and confidentiality requirements.</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={font(11, 500, 'rgba(28,28,28,0.55)')}>Learner Signature (type your full name)</label>
+                      <input
+                        type="text"
+                        value={declForm.learnerSignature}
+                        onChange={e => setDeclForm(f => ({ ...f, learnerSignature: e.target.value }))}
+                        placeholder="Type your full name as signature…"
+                        style={{ display: 'block', width: '100%', marginTop: '6px', border: '1px solid rgba(28,28,28,0.15)', borderRadius: '8px', padding: '8px 12px', ...font(13, 400, '#1c1c1c'), boxSizing: 'border-box' as const, fontStyle: 'italic' }}
+                      />
+                    </div>
+
+                    {declaration?.learnerSignedAt && (
+                      <div style={{ ...font(12, 400, '#4aa785') }}>
+                        ✓ Signed by learner on {new Date(declaration.learnerSignedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+
+                    {declaration?.trainerAgreed && (
+                      <div style={{ backgroundColor: 'rgba(74,167,133,0.06)', borderRadius: '10px', padding: '12px 16px', border: '1px solid rgba(74,167,133,0.2)' }}>
+                        <div style={font(13, 600, '#166534')}>Trainer Countersignature</div>
+                        <div style={{ ...font(12, 400, '#166534'), marginTop: '4px' }}>
+                          ✓ Confirmed by trainer{declaration.trainerSignedAt ? ` on ${new Date(declaration.trainerSignedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                        </div>
+                        {declaration.trainerSignature && <div style={{ ...font(13, 400, '#166534', { fontStyle: 'italic', marginTop: '4px' }) }}>{declaration.trainerSignature}</div>}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={handleSaveDeclaration}
+                        disabled={savingDeclaration || (!declForm.learnerAgreed && !declForm.agreedToTerms && !declForm.learnerSignature)}
+                        style={{ backgroundColor: savingDeclaration ? 'rgba(28,28,28,0.3)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '7px 20px', cursor: savingDeclaration ? 'default' : 'pointer' }}
+                      >
+                        <span style={font(13, 500, '#fff')}>{savingDeclaration ? 'Saving…' : 'Save Declaration'}</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 

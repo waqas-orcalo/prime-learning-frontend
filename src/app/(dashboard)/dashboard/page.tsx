@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/api-client'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconQuestion = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5" fill="none"/><text x="16" y="22" text-anchor="middle" font-family="Inter,sans-serif" font-size="18" font-weight="600" fill="#1c1c1c">?</text></svg>`)
@@ -37,8 +38,8 @@ function Divider({ mb = '20px' }: { mb?: string }) {
   return <div style={{ width: '100%', height: '1px', backgroundColor: 'rgba(28,28,28,0.1)', marginBottom: mb }} />
 }
 
-function DonutChartCard() {
-  const progress = 70, size = 247, strokeWidth = 24
+function DonutChartCard({ progress = 0 }: { progress?: number }) {
+  const size = 247, strokeWidth = 24
   const radius = (size - strokeWidth) / 2, circumference = 2 * Math.PI * radius
   const progressOffset = circumference - (progress / 100) * circumference
   return (
@@ -73,8 +74,9 @@ function DonutChartCard() {
 
 const MONTHS_CAL = ['January','February','March','April','May','June','July','August','September','October','November','December']
 function CalendarCard() {
-  const [month, setMonth] = useState(4); const [year, setYear] = useState(2025)
-  const today = 23, rangeStart = 23, rangeEnd = 27
+  const now = new Date()
+  const [month, setMonth] = useState(now.getMonth()); const [year, setYear] = useState(now.getFullYear())
+  const today = now.getDate(), rangeStart = today, rangeEnd = Math.min(today + 4, new Date(year, month + 1, 0).getDate())
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: { n: number; active: boolean }[] = []
   for (let i = 1; i <= daysInMonth; i++) cells.push({ n: i, active: true })
@@ -107,13 +109,15 @@ function CalendarCard() {
   )
 }
 
-const BARS = [
-  { label: 'Immediately', count: 2, barWidth: 108, color: '#9747FF', bgColor: 'rgba(151,71,255,0.1)', dotColor: '#9747FF' },
-  { label: 'This week', count: 0, barWidth: 0, color: 'rgba(42,120,183,0.1)', bgColor: 'rgba(42,120,183,0.1)', dotColor: '#C4C4C4' },
-  { label: 'Next week', count: 3, barWidth: 160, color: '#F8B637', bgColor: 'rgba(248,182,55,0.1)', dotColor: '#F8B637' },
-  { label: 'In two weeks', count: 1, barWidth: 61, color: '#5FC966', bgColor: 'rgba(95,201,102,0.1)', dotColor: '#5FC966' },
+const BAR_META = [
+  { label: 'Immediately', color: '#9747FF', bgColor: 'rgba(151,71,255,0.1)', dotColor: '#9747FF' },
+  { label: 'This week',   color: '#2A78B7', bgColor: 'rgba(42,120,183,0.1)',  dotColor: '#2A78B7' },
+  { label: 'Next week',   color: '#F8B637', bgColor: 'rgba(248,182,55,0.1)',  dotColor: '#F8B637' },
+  { label: 'In two weeks',color: '#5FC966', bgColor: 'rgba(95,201,102,0.1)', dotColor: '#5FC966' },
 ]
-function BarChartCard() {
+function BarChartCard({ taskBuckets = [0, 0, 0, 0] }: { taskBuckets?: number[] }) {
+  const maxCount = Math.max(...taskBuckets, 1)
+  const BARS = BAR_META.map((m, i) => ({ ...m, count: taskBuckets[i] ?? 0, barWidth: Math.round((taskBuckets[i] ?? 0) / maxCount * 160) }))
   return (
     <div style={chartCardStyle}>
       <div style={{ ...font(18, 400, '#9291A5'), marginBottom: '4px' }}>Statistics</div>
@@ -179,7 +183,7 @@ const TAB_PILLS: Record<string, { label: string; icon: string; route: string }[]
     { label: 'Gap Analysis', icon: iconSearch, route: '/gap-analysis' },
     { label: 'Learning Journey', icon: iconTrendUp, route: '/learning-journey' },
     { label: 'Scorecard', icon: iconGauge, route: '/scorecard' },
-    { label: 'Progress (0%)', icon: iconPieChart, route: '/progress-review' },
+    { label: 'Progress', icon: iconPieChart, route: '/progress-review' },
   ],
   Forms: [
     { label: 'Learner feedback from teach sessions', icon: iconFormDoc, route: '/forms/learner-feedback' },
@@ -198,6 +202,64 @@ export default function DashboardPage() {
   const [mainTab, setMainTab] = useState('Activity')
   const { data: session } = useSession()
   const firstName = (session?.user as any)?.firstName || 'there'
+  const token = (session?.user as any)?.accessToken as string | undefined
+
+  // Real data state
+  const [progressPct, setProgressPct] = useState(0)
+  const [taskBuckets, setTaskBuckets] = useState([0, 0, 0, 0])
+  const [trainerName, setTrainerName] = useState('—')
+  const [trainerRole, setTrainerRole] = useState('Primary Trainer')
+  const [trainerPresence, setTrainerPresence] = useState('Online')
+  const [workplace, setWorkplace] = useState('—')
+
+  useEffect(() => {
+    if (!token) return
+    const now = new Date()
+
+    // 1) Learning activities → progress %
+    apiFetch<any>('/learning-activities?limit=200&page=1', token).then(res => {
+      const activities: any[] = res?.data ?? []
+      const total = activities.length
+      const completed = activities.filter((a: any) => a.status === 'COMPLETED').length
+      setProgressPct(total > 0 ? Math.round((completed / total) * 100) : 0)
+    }).catch(() => {})
+
+    // 2) Tasks → due-date buckets + trainer ID
+    apiFetch<any>('/tasks?page=1&limit=200', token).then(res => {
+      const tasks: any[] = res?.data ?? []
+
+      // bucket by due date
+      const buckets = [0, 0, 0, 0]
+      tasks.filter(t => !['COMPLETED','CANCELLED'].includes(t.status) && t.dueDate).forEach(t => {
+        const days = Math.ceil((new Date(t.dueDate).getTime() - now.getTime()) / 86400000)
+        if (days <= 0) buckets[0]++
+        else if (days <= 7) buckets[1]++
+        else if (days <= 14) buckets[2]++
+        else if (days <= 21) buckets[3]++
+      })
+      setTaskBuckets(buckets)
+
+      // get trainer from first task's createdBy
+      const trainerId = tasks.find(t => t.createdBy)?.createdBy
+      if (trainerId && typeof trainerId === 'string') {
+        apiFetch<any>(`/users/${trainerId}`, token).then(r => {
+          const u = r?.data
+          if (u) {
+            setTrainerName(`${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || '—')
+            const roleMap: Record<string, string> = { TRAINER: 'Primary Trainer', SUPER_ADMIN: 'Super Admin', ORG_ADMIN: 'Org Admin', LEARNER: 'Learner' }
+            setTrainerRole(roleMap[u.role] ?? u.role ?? 'Trainer')
+            setTrainerPresence(u.presenceStatus ?? 'Online')
+          }
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+
+    // 3) Current user profile → workplace
+    apiFetch<any>('/users/me', token).then(res => {
+      const u = res?.data
+      if (u?.workplace) setWorkplace(u.workplace)
+    }).catch(() => {})
+  }, [token])
 
   return (
     <div>
@@ -239,9 +301,9 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: '16px', padding: '8px', width: '190px', flexShrink: 0, marginLeft: '12px' }}>
             <img src={iconTrainerAvatar} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '80px' }} />
             <div>
-              <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px' }}>Cris Curtis</div>
-              <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>Primary Trainer</div>
-              <div style={{ ...font(14, 400, '#5FC966'), lineHeight: '20px' }}>Online</div>
+              <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px' }}>{trainerName}</div>
+              <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>{trainerRole}</div>
+              <div style={{ ...font(14, 400, trainerPresence === 'Online' ? '#5FC966' : '#F8B637'), lineHeight: '20px' }}>{trainerPresence}</div>
             </div>
           </div>
         </div>
@@ -249,9 +311,9 @@ export default function DashboardPage() {
 
       {/* Three Chart Cards */}
       <div style={{ display: 'flex', gap: '30px', marginBottom: '30px', overflowX: 'auto' as const }}>
-        <DonutChartCard />
+        <DonutChartCard progress={progressPct} />
         <CalendarCard />
-        <BarChartCard />
+        <BarChartCard taskBuckets={taskBuckets} />
       </div>
 
       {/* Three Info Cards */}
@@ -278,10 +340,10 @@ export default function DashboardPage() {
       {/* Black Info Bar */}
       <div style={{ backgroundColor: '#1c1c1c', borderRadius: '8px', padding: '8px', display: 'flex', marginBottom: '30px' }}>
         {[
-          { text: 'Workplace : Default Workplace', ul: true },
-          { text: 'Mentor name : Josseme', ul: false },
-          { text: 'Phone number: ********', ul: false },
-          { text: 'Email: None', ul: true },
+          { text: `Workplace : ${workplace}`, ul: true },
+          { text: `Trainer : ${trainerName}`, ul: false },
+          { text: `Phone number: ${(session?.user as any)?.phone ?? '—'}`, ul: false },
+          { text: `Email: ${(session?.user as any)?.email ?? '—'}`, ul: true },
         ].map((item, i) => (
           <div key={i} style={{ flex: 1, padding: '8px 16px', textAlign: 'center' as const, ...font(14, 700, '#fff'), textDecoration: item.ul ? 'underline' : 'none', whiteSpace: 'nowrap' as const }}>{item.text}</div>
         ))}

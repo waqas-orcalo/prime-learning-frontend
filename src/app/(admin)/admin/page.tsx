@@ -220,6 +220,8 @@ interface UserRecord {
   role: string; status: string; phone?: string; createdAt?: string
 }
 
+interface TrainerRecord { _id: string; firstName: string; lastName: string; email: string }
+
 function UsersPage({ token }: { token: string }) {
   const [users, setUsers]           = useState<UserRecord[]>([])
   const [total, setTotal]           = useState(0)
@@ -233,6 +235,11 @@ function UsersPage({ token }: { token: string }) {
   const [deleting, setDeleting]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState('')
+  // Trainer assignment
+  const [assignUser, setAssignUser]         = useState<UserRecord | null>(null)
+  const [trainers, setTrainers]             = useState<TrainerRecord[]>([])
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>('')
+  const [assigning, setAssigning]           = useState(false)
 
   const LIMIT = 10
 
@@ -325,6 +332,31 @@ function UsersPage({ token }: { token: string }) {
     } catch { setError('Status update failed') }
   }
 
+  const openAssignTrainer = async (u: UserRecord) => {
+    setAssignUser(u)
+    setSelectedTrainerId((u as any).assignedTrainerId ?? '')
+    if (trainers.length === 0) {
+      try {
+        const r = await apiFetch(`${apiBase()}/users/trainer/all-trainers`, token)
+        const d = await r.json()
+        setTrainers(Array.isArray(d?.data) ? d.data : [])
+      } catch { setTrainers([]) }
+    }
+  }
+
+  const handleAssignTrainer = async () => {
+    if (!assignUser) return
+    setAssigning(true)
+    try {
+      await apiFetch(`${apiBase()}/users/${assignUser._id}/assign-trainer`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ trainerId: selectedTrainerId || null }),
+      })
+      setAssignUser(null)
+      load()
+    } catch { setError('Assign trainer failed') } finally { setAssigning(false) }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
@@ -403,6 +435,12 @@ function UsersPage({ token }: { token: string }) {
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
                           <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                             onClick={() => openEdit(u)}>Edit</button>
+                          {u.role === 'LEARNER' && (
+                            <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: INDIGO, borderColor: INDIGO }}
+                              onClick={() => openAssignTrainer(u)}>
+                              {(u as any).assignedTrainerId ? '👤 Trainer' : 'Assign Trainer'}
+                            </button>
+                          )}
                           {(u.status ?? '').toLowerCase() !== 'active' && (
                             <button style={{ ...btn(true), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                               onClick={() => handleStatus(u, 'ACTIVE')}>Activate</button>
@@ -482,6 +520,46 @@ function UsersPage({ token }: { token: string }) {
           loading={deleting}
         />
       )}
+
+      {/* Assign Trainer Modal */}
+      {assignUser && (
+        <Modal title={`Assign Trainer — ${assignUser.firstName} ${assignUser.lastName}`} onClose={() => setAssignUser(null)} width={440}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ ...font(13, 400, MUTED) }}>
+              Select the trainer this learner should be assigned to. Choose "Unassigned" to remove their current trainer.
+            </div>
+            {trainers.length === 0 ? (
+              <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: '16px 0' }}>
+                No trainers found. Create a trainer user first.
+              </div>
+            ) : (
+              <Field label="Trainer">
+                <select style={inputStyle} value={selectedTrainerId}
+                  onChange={e => setSelectedTrainerId(e.target.value)}>
+                  <option value="">— Unassigned —</option>
+                  {trainers.map(t => (
+                    <option key={t._id} value={t._id}>
+                      {t.firstName} {t.lastName} ({t.email})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {(assignUser as any).assignedTrainerId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(108,99,255,0.07)', borderRadius: 8, padding: '8px 12px' }}>
+                <span style={{ fontSize: 14 }}>👤</span>
+                <span style={{ ...font(12, 500, INDIGO) }}>Currently assigned to a trainer</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button style={btn()} onClick={() => setAssignUser(null)}>Cancel</button>
+              <button style={btn(true)} onClick={handleAssignTrainer} disabled={assigning}>
+                {assigning ? 'Saving…' : 'Save Assignment'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -490,13 +568,17 @@ function UsersPage({ token }: { token: string }) {
 // COURSES PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 interface CourseSlide { content: string }
-interface CourseModule { name: string; slides: CourseSlide[] }
+interface QuizQuestion { question: string; options: string[]; correctIndex: number; explanation?: string }
+interface CourseQuiz { passingScore: number; questions: QuizQuestion[] }
+interface CourseModule { name: string; slides: CourseSlide[]; quiz?: CourseQuiz }
 interface CourseRecord {
   _id: string; title: string; description?: string; category?: string;
   modules?: number; duration?: string; status: string; thumbnailEmoji?: string;
   enrolledUsers?: string[]; createdAt?: string;
   courseModules?: CourseModule[]
 }
+
+const emptyQuestion = (): QuizQuestion => ({ question: '', options: ['', '', '', ''], correctIndex: 0, explanation: '' })
 
 const COURSE_EMOJIS = ['📘','📊','🔬','💼','🧪','🎯','🧠','💻','🌐','📐']
 const COURSE_GRADIENTS = [
@@ -585,7 +667,14 @@ function CoursesPage({ token }: { token: string }) {
   const openEdit = (c: CourseRecord) => {
     setForm({ title: c.title, description: c.description ?? '', category: c.category ?? '',
       duration: c.duration ?? '', status: c.status, thumbnailEmoji: c.thumbnailEmoji ?? '📘' })
-    setCourseModules(c.courseModules ? c.courseModules.map(m => ({ name: m.name, slides: m.slides.map(s => ({ content: s.content })) })) : [])
+    setCourseModules(c.courseModules ? c.courseModules.map(m => ({
+      name: m.name,
+      slides: m.slides.map(s => ({ content: s.content })),
+      quiz: m.quiz ? {
+        passingScore: m.quiz.passingScore ?? 70,
+        questions: m.quiz.questions.map(q => ({ question: q.question, options: [...q.options], correctIndex: q.correctIndex, explanation: q.explanation ?? '' }))
+      } : undefined
+    })) : [])
     setEditCourse(c)
   }
 
@@ -829,6 +918,101 @@ function CoursesPage({ token }: { token: string }) {
                     {mod.slides.length === 0 && (
                       <div style={{ padding: '8px 12px', ...font(12, 400, MUTED) }}>No slides yet — click "+ Slide" to add one.</div>
                     )}
+
+                    {/* ── Quiz section ── */}
+                    <div style={{ borderTop: `1px solid ${BORDER.replace('1px solid ','')}`, margin: '0 12px' }} />
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 14 }}>🧩</span>
+                          <span style={{ ...font(13, 600, NAVY) }}>Quiz after this module</span>
+                          {mod.quiz && <span style={{ ...font(11, 500, '#fff'), background: INDIGO, borderRadius: 99, padding: '2px 8px' }}>{mod.quiz.questions.length} Q</span>}
+                        </div>
+                        {mod.quiz ? (
+                          <button
+                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: undefined }))}
+                            style={{ ...font(11, 500, RED), background: 'none', border: `1px solid ${RED}`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+                          >Remove Quiz</button>
+                        ) : (
+                          <button
+                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { passingScore: 70, questions: [emptyQuestion()] } }))}
+                            style={{ ...btn(true), fontSize: 12, padding: '4px 12px' }}
+                          >+ Add Quiz</button>
+                        )}
+                      </div>
+
+                      {mod.quiz && (
+                        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                          {/* Passing score */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(108,99,255,0.06)', borderRadius: 8, border: '1px solid rgba(108,99,255,0.2)' }}>
+                            <span style={font(12, 500, NAVY)}>Passing score:</span>
+                            <input
+                              type="number" min="0" max="100"
+                              value={mod.quiz.passingScore}
+                              onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, passingScore: Number(e.target.value) } }))}
+                              style={{ width: 60, ...inputStyle, margin: 0, padding: '4px 8px', fontSize: 13 }}
+                            />
+                            <span style={font(12, 400, MUTED)}>%</span>
+                          </div>
+
+                          {/* Questions */}
+                          {mod.quiz.questions.map((q, qi) => (
+                            <div key={qi} style={{ border: BORDER, borderRadius: 10, overflow: 'hidden', background: '#fafafa' }}>
+                              <div style={{ background: 'rgba(108,99,255,0.07)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ ...font(12, 700, '#fff'), background: INDIGO, borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11 }}>Q{qi + 1}</span>
+                                <input
+                                  style={{ ...inputStyle, flex: 1, margin: 0, fontSize: 13 }}
+                                  placeholder={`Question ${qi + 1}…`}
+                                  value={q.question}
+                                  onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
+                                    ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, question: e.target.value }) }
+                                  }))}
+                                />
+                                <button
+                                  onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.filter((_, j) => j !== qi) } }))}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700 }}
+                                >×</button>
+                              </div>
+                              <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+                                {q.options.map((opt, oi) => (
+                                  <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <input
+                                      type="radio" name={`correct-${mi}-${qi}`}
+                                      checked={q.correctIndex === oi}
+                                      onChange={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
+                                        ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, correctIndex: oi }) }
+                                      }))}
+                                      title="Mark as correct answer"
+                                    />
+                                    <input
+                                      style={{ ...inputStyle, flex: 1, margin: 0, fontSize: 13, borderColor: q.correctIndex === oi ? GREEN : undefined }}
+                                      placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                                      value={opt}
+                                      onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
+                                        ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, options: qq.options.map((o, k) => k === oi ? e.target.value : o) }) }
+                                      }))}
+                                    />
+                                    {q.correctIndex === oi && <span style={{ ...font(10, 700, GREEN), flexShrink: 0 }}>✓ Correct</span>}
+                                  </div>
+                                ))}
+                                <input
+                                  style={{ ...inputStyle, margin: 0, fontSize: 12 }}
+                                  placeholder="Explanation (optional)…"
+                                  value={q.explanation ?? ''}
+                                  onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
+                                    ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, explanation: e.target.value }) }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, questions: [...m.quiz!.questions, emptyQuestion()] } }))}
+                            style={{ ...btn(), fontSize: 12, padding: '5px 14px', alignSelf: 'flex-start' as const, borderColor: INDIGO, color: INDIGO }}
+                          >+ Add Question</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1494,16 +1678,16 @@ function GroupsPage({ token }: { token: string }) {
 
   const load = () => {
     setLoading(true)
-    apiFetch<any>(`${apiBase()}/groups`, token)
-      .then(r => r.json()).then(b => setGroups(Array.isArray(b?.data) ? b.data : []))
+    apiFetch(`${apiBase()}/groups`, token)
+      .then(r => r.json()).then((b: any) => setGroups(Array.isArray(b?.data) ? b.data : []))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     load()
-    apiFetch<any>(`${apiBase()}/users?limit=200`, token)
+    apiFetch(`${apiBase()}/users?limit=200`, token)
       .then(r => r.json())
-      .then(b => setAllUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
+      .then((b: any) => setAllUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
@@ -1561,7 +1745,7 @@ function GroupsPage({ token }: { token: string }) {
     await apiFetch(`${apiBase()}/groups/${groupId}/members`, token, {
       method: 'DELETE', body: JSON.stringify({ memberIds: [memberId] }),
     })
-    const updated = await apiFetch<any>(`${apiBase()}/groups/${groupId}`, token).then(r => r.json())
+    const updated = await apiFetch(`${apiBase()}/groups/${groupId}`, token).then((r: any) => r.json())
     setViewGroup(updated?.data ?? null)
     load()
   }
@@ -1570,7 +1754,7 @@ function GroupsPage({ token }: { token: string }) {
     await apiFetch(`${apiBase()}/groups/${groupId}/members`, token, {
       method: 'POST', body: JSON.stringify({ memberIds: ids }),
     })
-    const updated = await apiFetch<any>(`${apiBase()}/groups/${groupId}`, token).then(r => r.json())
+    const updated = await apiFetch(`${apiBase()}/groups/${groupId}`, token).then((r: any) => r.json())
     setViewGroup(updated?.data ?? null)
     setAddMemberMode(false); setAddSearch('')
     load()
