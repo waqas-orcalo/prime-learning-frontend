@@ -6,6 +6,8 @@ import {
   useCreateResource,
   useDeleteResource,
   useToggleBookmark,
+  useShareResource,
+  useRevokeShare,
   useRecordView,
   useRecordDownload,
   type Resource,
@@ -82,7 +84,9 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
   )
 }
 
-function ContextMenu({ onEdit, onDelete, onClose }: { onEdit: () => void; onDelete: () => void; onClose: () => void }) {
+const iconShare = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="11" cy="3" r="1.5" stroke="#1c1c1c" stroke-width="1.1"/><circle cx="11" cy="11" r="1.5" stroke="#1c1c1c" stroke-width="1.1"/><circle cx="3" cy="7" r="1.5" stroke="#1c1c1c" stroke-width="1.1"/><path d="M4.4 6.2l5.1-2.7M4.4 7.8l5.1 2.7" stroke="#1c1c1c" stroke-width="1.1" stroke-linecap="round"/></svg>`)
+
+function ContextMenu({ onEdit, onDelete, onShare, isOwner, onClose }: { onEdit: () => void; onDelete: () => void; onShare?: () => void; isOwner: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
@@ -97,9 +101,115 @@ function ContextMenu({ onEdit, onDelete, onClose }: { onEdit: () => void; onDele
     </button>
   )
   return (
-    <div ref={ref} style={{ position: 'absolute', top: '100%', right: 0, zIndex: 50, backgroundColor: '#fff', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '10px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', minWidth: '150px', padding: '4px 0', marginTop: '4px' }}>
-      {item('Edit', iconEdit, '#1c1c1c', onEdit)}
-      {item('Delete', iconDeleteIcon, '#f43f5e', onDelete)}
+    <div ref={ref} style={{ position: 'absolute', top: '100%', right: 0, zIndex: 50, backgroundColor: '#fff', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '10px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', minWidth: '160px', padding: '4px 0', marginTop: '4px' }}>
+      {isOwner && item('Edit', iconEdit, '#1c1c1c', onEdit)}
+      {isOwner && onShare && item('Share', iconShare, '#1c1c1c', onShare)}
+      {isOwner && item('Delete', iconDeleteIcon, '#f43f5e', onDelete)}
+    </div>
+  )
+}
+
+// ── Share Resource Modal ───────────────────────────────────────────────────────
+function ShareResourceModal({ resource, onClose, onShare }: { resource: Resource; onClose: () => void; onShare: (userIds: string[]) => void }) {
+  const [userId, setUserId] = useState('')
+  const [added, setAdded] = useState<string[]>([])
+  const [error, setError] = useState('')
+
+  function addUser() {
+    const trimmed = userId.trim()
+    if (!trimmed) return
+    if (!/^[a-f\d]{24}$/i.test(trimmed)) { setError('Enter a valid 24-character user ID.'); return }
+    if (added.includes(trimmed)) { setError('Already added.'); return }
+    setAdded(prev => [...prev, trimmed])
+    setUserId('')
+    setError('')
+  }
+
+  function removeUser(id: string) {
+    setAdded(prev => prev.filter(u => u !== id))
+  }
+
+  const inputStyle: React.CSSProperties = { ...font(14, 400), flex: 1, height: '40px', border: '1px solid #e4e7ec', borderRadius: '10px', padding: '0 14px', backgroundColor: '#fdfdfd', outline: 'none', transition: 'border-color 0.15s ease' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ backgroundColor: '#fff', borderRadius: '16px', width: '100%', maxWidth: '480px', boxShadow: '0px 8px 32px rgba(13,10,44,0.16)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '18px 24px', backgroundColor: '#f4f4f4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
+          <div>
+            <span style={{ ...font(15, 600) }}>Share Resource</span>
+            <p style={{ ...font(12, 400, '#9291A5'), margin: '2px 0 0' }}>{resource.title}</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+            <img src={iconClose} alt="Close" style={{ width: '14px', height: '14px' }} />
+          </button>
+        </div>
+
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Currently shared with */}
+          {resource.sharedWith?.length > 0 && (
+            <div>
+              <span style={{ ...font(12, 500, 'rgba(28,28,28,0.6)'), display: 'block', marginBottom: '8px' }}>Currently shared with ({resource.sharedWith.length})</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
+                {resource.sharedWith.map((uid: string) => (
+                  <div key={uid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'rgba(79,70,229,0.06)', borderRadius: '8px', border: '1px solid rgba(79,70,229,0.15)' }}>
+                    <span style={{ ...font(12, 400, '#4f46e5'), fontFamily: 'monospace' }}>{uid}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add users input */}
+          <div>
+            <span style={{ ...font(12, 500, 'rgba(28,28,28,0.6)'), display: 'block', marginBottom: '8px' }}>Add users by ID</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={userId}
+                onChange={e => { setUserId(e.target.value); setError('') }}
+                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addUser())}
+                placeholder="Paste user ID (24 hex chars)…"
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = '#4f46e5')}
+                onBlur={e => (e.target.style.borderColor = '#e4e7ec')}
+              />
+              <button onClick={addUser} style={{ ...font(13, 600, '#fff'), height: '40px', padding: '0 16px', borderRadius: '10px', border: 'none', backgroundColor: '#4f46e5', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Add
+              </button>
+            </div>
+            {error && <p style={{ ...font(11, 400, '#f43f5e'), margin: '6px 0 0' }}>{error}</p>}
+          </div>
+
+          {/* Users to share with */}
+          {added.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ ...font(12, 500, 'rgba(28,28,28,0.6)') }}>Will be shared with:</span>
+              {added.map(uid => (
+                <div key={uid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'rgba(34,197,94,0.06)', borderRadius: '8px', border: '1px solid rgba(34,197,94,0.2)' }}>
+                  <span style={{ ...font(12, 400, '#15803d'), fontFamily: 'monospace' }}>{uid}</span>
+                  <button onClick={() => removeUser(uid)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex' }}>
+                    <img src={iconClose} alt="Remove" style={{ width: '12px', height: '12px' }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
+            <button type="button" onClick={onClose}
+              style={{ ...font(14, 500), padding: '0 20px', height: '40px', borderRadius: '10px', border: '1px solid rgba(28,28,28,0.15)', backgroundColor: 'transparent', cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button
+              disabled={added.length === 0}
+              onClick={() => { onShare(added); onClose() }}
+              style={{ ...font(14, 600, added.length === 0 ? 'rgba(255,255,255,0.6)' : '#fff'), padding: '0 24px', height: '40px', borderRadius: '10px', border: 'none', backgroundColor: added.length === 0 ? '#9ca3af' : '#1c1c1c', cursor: added.length === 0 ? 'not-allowed' : 'pointer' }}>
+              Share with {added.length > 0 ? `${added.length} user${added.length > 1 ? 's' : ''}` : '…'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -211,10 +321,11 @@ function AddResourceModal({ onClose, onAdd }: { onClose: () => void; onAdd: (pay
 }
 
 // ── Resource Card ─────────────────────────────────────────────────────────────
-function ResourceCard({ resource, onBookmark, onDelete, onView, onDownload }: {
+function ResourceCard({ resource, onBookmark, onDelete, onShare, onView, onDownload }: {
   resource: Resource
   onBookmark: (id: string) => void
   onDelete: (id: string) => void
+  onShare: (resource: Resource) => void
   onView: (id: string) => void
   onDownload: (id: string) => void
 }) {
@@ -253,6 +364,18 @@ function ResourceCard({ resource, onBookmark, onDelete, onView, onDownload }: {
               <img src={iconStar} alt="" style={{ width: '10px', height: '10px' }} />Featured
             </span>
           )}
+          {/* "Shared with you" badge — shown when viewer is NOT the owner */}
+          {!resource.isOwner && (
+            <span style={{ ...font(11, 600, '#7c3aed'), backgroundColor: 'rgba(124,58,237,0.08)', borderRadius: '20px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+              <img src={iconShare} alt="" style={{ width: '10px', height: '10px' }} />Shared
+            </span>
+          )}
+          {/* Shared-with count badge — shown to owner when resource is shared */}
+          {resource.isOwner && (resource.sharedWith?.length ?? 0) > 0 && (
+            <span style={{ ...font(11, 500, '#4f46e5'), backgroundColor: 'rgba(79,70,229,0.08)', borderRadius: '20px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+              <img src={iconShare} alt="" style={{ width: '10px', height: '10px' }} />{resource.sharedWith.length}
+            </span>
+          )}
           <TypeBadge type={resource.type} />
           <div style={{ position: 'relative' }}>
             <button onClick={() => setMenuOpen(o => !o)}
@@ -263,7 +386,9 @@ function ResourceCard({ resource, onBookmark, onDelete, onView, onDownload }: {
             </button>
             {menuOpen && (
               <ContextMenu
+                isOwner={resource.isOwner}
                 onEdit={() => setMenuOpen(false)}
+                onShare={() => { onShare(resource); setMenuOpen(false) }}
                 onDelete={() => { onDelete(resource._id); setMenuOpen(false) }}
                 onClose={() => setMenuOpen(false)}
               />
@@ -362,11 +487,12 @@ function SkeletonCard() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ResourcesView() {
-  const [activeTab,      setActiveTab]  = useState<TabCategory>('All')
-  const [search,         setSearch]     = useState('')
-  const [debounced,      setDebounced]  = useState('')
-  const [showBookmarked, setBookmarked] = useState(false)
-  const [showModal,      setShowModal]  = useState(false)
+  const [activeTab,        setActiveTab]    = useState<TabCategory>('All')
+  const [search,           setSearch]       = useState('')
+  const [debounced,        setDebounced]    = useState('')
+  const [showBookmarked,   setBookmarked]   = useState(false)
+  const [showModal,        setShowModal]    = useState(false)
+  const [shareTarget,      setShareTarget]  = useState<Resource | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 350)
@@ -385,6 +511,7 @@ export default function ResourcesView() {
   const createResource  = useCreateResource()
   const deleteResource  = useDeleteResource()
   const toggleBookmark  = useToggleBookmark()
+  const shareResource   = useShareResource()
   const recordView      = useRecordView()
   const recordDownload  = useRecordDownload()
 
@@ -500,7 +627,7 @@ export default function ResourcesView() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
             {featured.map((r: Resource) => (
-              <ResourceCard key={r._id} resource={r} onBookmark={id => toggleBookmark.mutate(id)} onDelete={id => deleteResource.mutate(id)} onView={id => recordView.mutate(id)} onDownload={id => recordDownload.mutate(id)} />
+              <ResourceCard key={r._id} resource={r} onBookmark={id => toggleBookmark.mutate(id)} onDelete={id => deleteResource.mutate(id)} onShare={r => setShareTarget(r)} onView={id => recordView.mutate(id)} onDownload={id => recordDownload.mutate(id)} />
             ))}
           </div>
         </div>
@@ -517,22 +644,32 @@ export default function ResourcesView() {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
             {regular.map((r: Resource) => (
-              <ResourceCard key={r._id} resource={r} onBookmark={id => toggleBookmark.mutate(id)} onDelete={id => deleteResource.mutate(id)} onView={id => recordView.mutate(id)} onDownload={id => recordDownload.mutate(id)} />
+              <ResourceCard key={r._id} resource={r} onBookmark={id => toggleBookmark.mutate(id)} onDelete={id => deleteResource.mutate(id)} onShare={r => setShareTarget(r)} onView={id => recordView.mutate(id)} onDownload={id => recordDownload.mutate(id)} />
             ))}
           </div>
         </div>
       )}
 
       {/* Mutation spinner */}
-      {(createResource.isPending || deleteResource.isPending) && (
+      {(createResource.isPending || deleteResource.isPending || shareResource.isPending) && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#fff', borderRadius: '12px', padding: '12px 16px', boxShadow: '0px 4px 16px rgba(13,10,44,0.14)', display: 'flex', alignItems: 'center', gap: '10px', zIndex: 200 }}>
           <img src={iconSpinner} alt="" style={{ width: '20px', height: '20px', animation: 'spin 0.8s linear infinite' }} />
-          <span style={{ ...font(13, 500) }}>{createResource.isPending ? 'Adding resource…' : 'Deleting…'}</span>
+          <span style={{ ...font(13, 500) }}>
+            {createResource.isPending ? 'Adding resource…' : shareResource.isPending ? 'Sharing…' : 'Deleting…'}
+          </span>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
 
       {showModal && <AddResourceModal onClose={() => setShowModal(false)} onAdd={payload => { createResource.mutate(payload); setShowModal(false) }} />}
+
+      {shareTarget && (
+        <ShareResourceModal
+          resource={shareTarget}
+          onClose={() => setShareTarget(null)}
+          onShare={(userIds) => shareResource.mutate({ id: shareTarget._id, userIds })}
+        />
+      )}
     </div>
   )
 }

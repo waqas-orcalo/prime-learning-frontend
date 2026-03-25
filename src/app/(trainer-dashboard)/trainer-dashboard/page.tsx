@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTrainerLearners } from '@/hooks/use-trainer'
+import { useTrainerLearners, useTrainerDashboardStats, useTrainerRecentActivity } from '@/hooks/use-trainer'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const FF  = "'Inter', sans-serif"
@@ -308,11 +308,10 @@ function LearnersActivitySection() {
                 <div style={{ ...f(13, 600), marginBottom: 12 }}>Select a learner to view their portfolio</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                   {learners.length === 0 && <p style={f(12, 400, '#aaa')}>No learners found.</p>}
-                  {learners.map((learner, i) => {
+                  {learners.map((learner: any, i: number) => {
                     const name = `${learner.firstName} ${learner.lastName}`
-                    const pct  = 40 + (i * 11) % 55 // demo progress
-                    const statuses = ['On Track', 'Behind', 'At Risk']
-                    const status = statuses[i % 3]
+                    const pct  = learner.stats?.progressPercent ?? 0
+                    const status = pct >= 60 ? 'On Track' : pct >= 30 ? 'Behind' : 'At Risk'
                     const statusColor = status === 'On Track' ? '#43A047' : status === 'Behind' ? '#FB8C00' : '#E53935'
                     const statusBg    = status === 'On Track' ? '#E8F5E9' : status === 'Behind' ? '#FFF3E0' : '#FFEBEE'
                     return (
@@ -390,88 +389,82 @@ function LearnersActivitySection() {
 
 // ── Trainer's Dashboard accordion content ─────────────────────────────────────
 function TrainerDashboardContent() {
+  const { data: statsRes, isLoading } = useTrainerDashboardStats()
+  const stats = statsRes?.data
+
+  const totalLearners = stats?.learners?.total ?? 0
+  const totalTasks    = stats?.tasks?.total ?? 0
+  const pendingTasks  = stats?.tasks?.pending ?? 0
+  const completedTasks = stats?.tasks?.completed ?? 0
+  const completionRate = stats?.tasks?.completionRate ?? 0
+  const totalActivities = stats?.activities?.total ?? 0
+  const unreadMessages  = stats?.messages?.unread ?? 0
+
+  // Derive chart-safe percentages
+  const pctCompleted = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const pctPending   = totalTasks > 0 ? Math.round((pendingTasks / totalTasks) * 100) : 0
+  const pctOther     = Math.max(0, 100 - pctCompleted - pctPending)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Row 1: Calendar + 2 donuts */}
+      {isLoading && <p style={f(12, 400, '#888')}>Loading dashboard stats...</p>}
+
+      {/* Summary stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {[
+          { label: 'Total Learners', value: totalLearners, color: '#3b5bdb' },
+          { label: 'Total Tasks',    value: totalTasks,    color: '#7B61FF' },
+          { label: 'Activities',     value: totalActivities, color: '#2f9e44' },
+          { label: 'Unread Messages',value: unreadMessages, color: '#e67700' },
+        ].map(c => (
+          <div key={c.label} style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
+            <div style={f(11, 500, '#888')}>{c.label}</div>
+            <div style={{ ...f(24, 700, c.color), marginTop: 4 }}>{isLoading ? '–' : c.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 1: Calendar + Task completion donut + Completion rate donut */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ flexShrink: 0 }}><CalendarCard /></div>
         <DonutCard
-          title="Completed Visit in last 30 Days"
-          percent={70}
+          title="Task Completion"
+          percent={completionRate}
           color="#7B61FF"
           legend={[
-            { label: '90%+ visits completed', color: '#43A047', value: '12' },
-            { label: '80% - 89% completed',   color: '#f59e0b', value: '4'  },
-            { label: '20% - 50% completed',   color: '#ef4444', value: '2'  },
+            { label: 'Completed', color: '#43A047', value: String(completedTasks) },
+            { label: 'Pending',   color: '#f59e0b', value: String(pendingTasks) },
+            { label: 'Other',     color: '#ef4444', value: String(totalTasks - completedTasks - pendingTasks) },
           ]}
         />
         <DonutCard
-          title="Planned Visit in next 30 Days"
-          percent={70}
+          title="Overall Completion Rate"
+          percent={completionRate}
           color="#43A047"
           legend={[
-            { label: 'Planned',     color: '#43A047', value: '14' },
-            { label: 'Unplanned',   color: '#f59e0b', value: '4'  },
-            { label: 'Overdue',     color: '#ef4444', value: '2'  },
+            { label: 'Completed %', color: '#43A047', value: `${pctCompleted}%` },
+            { label: 'Pending %',   color: '#f59e0b', value: `${pctPending}%` },
+            { label: 'Other %',     color: '#ef4444', value: `${pctOther}%` },
           ]}
         />
       </div>
 
-      {/* Row 2: Bar chart + Due table + Pie (Last Logged In) */}
+      {/* Row 2: Pie charts with real proportions */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <PieCard
+          title="Task Distribution"
+          slices={[
+            { label: 'Completed', pct: pctCompleted || 1, color: '#43A047', value: completedTasks },
+            { label: 'Pending',   pct: pctPending || 1,   color: '#f59e0b', value: pendingTasks },
+            { label: 'In Progress', pct: pctOther || 1,   color: '#3b82f6', value: totalTasks - completedTasks - pendingTasks },
+          ]}
+        />
         <BarChartCard />
         <DueTableCard />
-        <PieCard
-          title="Learners Last Logged In"
-          slices={[
-            { label: 'Over 30 days',    pct: 20, color: '#ef4444', value: 3 },
-            { label: '6–30 days',       pct: 40, color: '#43A047', value: 6 },
-            { label: 'Within 7 days',   pct: 40, color: '#f59e0b', value: 6 },
-          ]}
-        />
       </div>
 
-      {/* Row 3: 3 Pie charts */}
+      {/* Row 3: Tasks Due bars */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <PieCard
-          title="Learners on Target"
-          slices={[
-            { label: 'Behind',    pct: 20, color: '#ef4444', value: 3 },
-            { label: 'On Target', pct: 40, color: '#43A047', value: 6 },
-            { label: 'Ahead',     pct: 40, color: '#3b82f6', value: 6 },
-          ]}
-        />
-        <PieCard
-          title="Learners on Target (OTJ)"
-          slices={[
-            { label: 'Behind',    pct: 20, color: '#ef4444', value: 3 },
-            { label: 'On Target', pct: 40, color: '#43A047', value: 6 },
-            { label: 'Ahead',     pct: 40, color: '#3b82f6', value: 6 },
-          ]}
-        />
-        <PieCard
-          title="No Off-The-Job Activity"
-          slices={[
-            { label: 'Over 4 weeks',  pct: 20, color: '#ef4444' },
-            { label: '3–4 weeks',     pct: 20, color: '#f59e0b' },
-            { label: '2–3 weeks',     pct: 20, color: '#fbbf24' },
-            { label: '1–2 weeks',     pct: 20, color: '#3b82f6' },
-            { label: 'Learning break',pct: 20, color: '#d1d5db' },
-          ]}
-        />
-      </div>
-
-      {/* Row 4: Progress Reviews Pie + Tasks Due bars */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <PieCard
-          title="Progress Review Due"
-          slices={[
-            { label: 'Overdue',        pct: 13, color: '#ef4444', value: 3  },
-            { label: 'Due in 7 days',  pct: 27, color: '#f59e0b', value: 6  },
-            { label: 'Due 7–13 days',  pct: 27, color: '#fbbf24', value: 6  },
-            { label: 'Due 14–28 days', pct: 33, color: '#43A047', value: 12 },
-          ]}
-        />
         <TasksDueCard />
       </div>
     </div>

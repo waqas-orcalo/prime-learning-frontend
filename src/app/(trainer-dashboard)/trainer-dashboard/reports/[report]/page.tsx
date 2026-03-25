@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import { useTrainerReport } from '@/hooks/use-trainer';
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const;
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
@@ -262,7 +263,22 @@ export default function ReportDetailPage() {
 
   const config = REPORT_CONFIGS[reportSlug];
   const [recordsPerPage, setRecordsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<Record<string, string>>({});
+
+  // Call real API for supported report types
+  const apiReportTypes = ['learners-last-logged-in', 'progress-reviews-due', 'due-to-complete', 'learners-on-track', 'learners-on-target', 'learners-at-risk', 'planned-visits', 'learners-on-target-otj', 'no-otj-activity'];
+  const isApiReport = apiReportTypes.includes(reportSlug);
+  const { data: reportRes, isLoading } = useTrainerReport(
+    isApiReport ? reportSlug : '',
+    {
+      page: currentPage,
+      limit: recordsPerPage,
+      cohort: filters.cohort || undefined,
+      from: filters.dateFrom || undefined,
+      to: filters.dateTo || undefined,
+    },
+  );
 
   if (!config) {
     return (
@@ -285,9 +301,115 @@ export default function ReportDetailPage() {
     );
   }
 
-  const totalRecords = config.sampleRows.length;
-  const startRecord = 1;
-  const endRecord = Math.min(recordsPerPage, totalRecords);
+  // Use API data when available, fall back to sample rows
+  const apiRows: Row[] = isApiReport && reportRes?.data
+    ? reportRes.data.map((item: any) => {
+        // Transform API response to match report column keys
+        const row: Row = {};
+        config.columns.forEach((col) => {
+          // ── Learner name ──
+          if (col.key === 'learner' && item.firstName) {
+            row.learner = `${item.firstName} ${item.lastName}`;
+          } else if (col.key === 'learner' && item.assignedTo?.firstName) {
+            row.learner = `${item.assignedTo.firstName} ${item.assignedTo.lastName}`;
+          }
+          // ── Last logged in ──
+          else if (col.key === 'lastLoggedIn' && item.lastActivityAt) {
+            row.lastLoggedIn = item.lastActivityAt ? new Date(item.lastActivityAt).toLocaleDateString() : 'Never';
+          }
+          // ── Tutor name ──
+          else if (col.key === 'tutorName' && item.createdBy?.firstName) {
+            row.tutorName = `${item.createdBy.firstName} ${item.createdBy.lastName}`;
+          }
+          // ── Progress bar ──
+          else if (col.key === 'progress' && item.progressPercent !== undefined) {
+            row.progress = { progress: item.progressPercent, target: 100 };
+          }
+          // ── Actual / expected progress % ──
+          else if (col.key === 'actualProgress' && item.progressPercent !== undefined) {
+            row.actualProgress = `${item.progressPercent}%`;
+          } else if (col.key === 'expectedProgress' && item.expectedProgress !== undefined) {
+            row.expectedProgress = `${item.expectedProgress}%`;
+          }
+          // ── Common user fields ──
+          else if (col.key === 'cohort') {
+            row.cohort = item.cohort || '–';
+          } else if (col.key === 'programme') {
+            row.programme = item.programme || '–';
+          } else if (col.key === 'employer' || col.key === 'workplace') {
+            row[col.key] = item.employer || item.workplace || item.location || '–';
+          }
+          // ── Date fields ──
+          else if (col.key === 'plannedEndDate' && item.dueDate) {
+            row.plannedEndDate = new Date(item.dueDate).toLocaleDateString();
+          } else if (col.key === 'date' && item.dueDate) {
+            row.date = new Date(item.dueDate).toLocaleDateString();
+          }
+          // ── Planned visits fields ──
+          else if (col.key === 'visitType') {
+            row.visitType = item.visitType || item.primaryMethod || '–';
+          } else if (col.key === 'location') {
+            row.location = item.location || item.employer || '–';
+          }
+          // ── OTJ target fields ──
+          else if (col.key === 'className') {
+            row.className = item.className || item.programme || '–';
+          } else if (col.key === 'placement') {
+            row.placement = item.placement || item.employer || '–';
+          } else if (col.key === 'targetOTJHours') {
+            row.targetOTJHours = String(item.targetOTJHours ?? '–');
+          } else if (col.key === 'assessorName') {
+            row.assessorName = item.assessorName || '–';
+          } else if (col.key === 'plannedOTJHours') {
+            row.plannedOTJHours = String(item.plannedOTJHours ?? '–');
+          } else if (col.key === 'actualOTJHours') {
+            row.actualOTJHours = String(item.actualOTJHours ?? '–');
+          } else if (col.key === 'expectedOTJHrs') {
+            row.expectedOTJHrs = String(item.expectedOTJHrs ?? '–');
+          } else if (col.key === 'deviation') {
+            row.deviation = String(item.deviation ?? '–');
+          } else if (col.key === 'targetDeviation') {
+            row.targetDeviation = String(item.targetDeviation ?? '–');
+          }
+          // ── No OTJ activity fields ──
+          else if (col.key === 'uln') {
+            row.uln = item.uln || '–';
+          } else if (col.key === 'mainLearningAim') {
+            row.mainLearningAim = item.mainLearningAim || item.programme || '–';
+          } else if (col.key === 'learnerStatus') {
+            row.learnerStatus = item.learnerStatus || item.status || '–';
+          } else if (col.key === 'progressGrade') {
+            row.progressGrade = item.progressGrade || '–';
+          } else if (col.key === 'lastLearningActivityDate') {
+            row.lastLearningActivityDate = item.lastLearningActivityDate || '–';
+          } else if (col.key === 'lastLearningActivityPlanDate') {
+            row.lastLearningActivityPlanDate = item.lastLearningActivityPlanDate || '–';
+          } else if (col.key === 'lastCompletedProgressReviewDate') {
+            row.lastCompletedProgressReviewDate = item.lastCompletedProgressReviewDate || '–';
+          } else if (col.key === 'lastOTJActivity') {
+            row.lastOTJActivity = item.lastOTJActivity || 'Never';
+          } else if (col.key === 'daysSinceOTJActivity') {
+            row.daysSinceOTJActivity = item.daysSinceOTJActivity ?? '–';
+          } else if (col.key === 'breakInLearning') {
+            row.breakInLearning = item.breakInLearning || '–';
+          }
+          // ── Fallback ──
+          else if (item[col.key] !== undefined) {
+            row[col.key] = item[col.key];
+          } else if (row[col.key] === undefined) {
+            row[col.key] = '–';
+          }
+        });
+        return row;
+      })
+    : config.sampleRows;
+
+  const rows = apiRows;
+  const totalRecords = isApiReport && reportRes?.pagination
+    ? reportRes.pagination.total
+    : rows.length;
+  const startRecord = ((currentPage - 1) * recordsPerPage) + 1;
+  const endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
 
   return (
     <div style={{ padding: '24px', backgroundColor: '#fff' }}>
@@ -444,7 +566,10 @@ export default function ReportDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {config.sampleRows.slice(0, recordsPerPage).map((row, rowIdx) => (
+            {isLoading && isApiReport && (
+              <tr><td colSpan={config.columns.length} style={{ ...font(13, 400, '#888'), padding: '24px', textAlign: 'center' }}>Loading report data...</td></tr>
+            )}
+            {rows.slice(0, recordsPerPage).map((row, rowIdx) => (
               <tr key={rowIdx} style={{ borderBottom: '1px solid #e0e0e0' }}>
                 {config.columns.map((col) => {
                   const value = row[col.key];

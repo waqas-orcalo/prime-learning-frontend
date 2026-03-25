@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useParams } from 'next/navigation';
+import { useTrainerLearnerPortfolio } from '@/hooks/use-trainer';
 
 // Font configuration
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const;
@@ -254,8 +255,55 @@ export default function LearnerPortfolioPage() {
   const params = useParams();
   const learnerId = params.learnerId as string;
 
+  // Fetch real portfolio data from API
+  const { data: portfolioData, isLoading } = useTrainerLearnerPortfolio(learnerId);
+  const portfolio = portfolioData?.data;
+
+  // Use API data if available, merge with demo data as fallback
+  const learnerFromApi = portfolio?.learner as any;
+  if (learnerFromApi) {
+    demoLearner.name = `${learnerFromApi.firstName} ${learnerFromApi.lastName}`;
+    demoLearner.programme = learnerFromApi.programme || demoLearner.programme;
+    demoLearner.employer = learnerFromApi.employer || demoLearner.employer;
+    demoLearner.avatar = `${learnerFromApi.firstName?.[0] || ''}${learnerFromApi.lastName?.[0] || ''}`.toUpperCase();
+  }
+
+  // Use real tasks/activities/journals from API if available
+  const realTasks = (portfolio?.tasks ?? []) as any[];
+  const realActivities = (portfolio?.activities ?? []) as any[];
+  const realJournals = (portfolio?.journals ?? []) as any[];
+
+  // Transform API tasks into evidence-like items
+  const evidenceItems = realTasks.length > 0
+    ? realTasks.map((t: any, i: number) => ({
+        id: i + 1,
+        title: t.title || 'Untitled Task',
+        date: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '–',
+        status: t.status === 'COMPLETED' ? 'Approved' : t.status === 'PENDING' ? 'Pending' : 'Under Review',
+      }))
+    : demoEvidence;
+
+  // Transform API journals
+  const journalItems = realJournals.length > 0
+    ? realJournals.map((j: any, i: number) => ({
+        id: i + 1,
+        title: j.title || 'Untitled Journal',
+        date: j.createdAt ? new Date(j.createdAt).toLocaleDateString() : '–',
+        category: j.category || 'General',
+      }))
+    : demoJournalEntries;
+
+  // Progress stats from API
+  const completedTasks = realTasks.filter((t: any) => t.status === 'COMPLETED').length;
+  const totalTasks = realTasks.length;
+  const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : demoLearner.progress;
+  demoLearner.progress = progressPct;
+
   return (
     <div style={{ backgroundColor: '#ffffff', minHeight: '100vh', padding: '24px' }}>
+      {isLoading && (
+        <div style={{ ...font(14, 400, '#888'), textAlign: 'center', padding: '40px' }}>Loading portfolio...</div>
+      )}
       {/* Back button + title row */}
       <div
         style={{
@@ -390,16 +438,16 @@ export default function LearnerPortfolioPage() {
           }}
         >
           <div>
-            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>Units Completed</div>
-            <div style={{ ...font(16, 700) }}>4/8</div>
+            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>Tasks Completed</div>
+            <div style={{ ...font(16, 700) }}>{completedTasks}/{totalTasks}</div>
           </div>
           <div>
-            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>OTJ Hours</div>
-            <div style={{ ...font(16, 700) }}>120/200</div>
+            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>Activities</div>
+            <div style={{ ...font(16, 700) }}>{realActivities.length}</div>
           </div>
           <div>
-            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>Reviews Done</div>
-            <div style={{ ...font(16, 700) }}>3/4</div>
+            <div style={{ ...font(12, 400, '#6b7280'), marginBottom: '4px' }}>Journal Entries</div>
+            <div style={{ ...font(16, 700) }}>{realJournals.length}</div>
           </div>
         </div>
       </div>
@@ -407,17 +455,19 @@ export default function LearnerPortfolioPage() {
       {/* Portfolio Sections */}
 
       {/* Evidence & Assignments */}
-      <AccordionSection title="Evidence & Assignments" defaultOpen={true}>
-        {demoEvidence.map((item) => (
+      <AccordionSection title={`Evidence & Assignments (${evidenceItems.length})`} defaultOpen={true}>
+        {evidenceItems.map((item: any) => (
           <EvidenceItem key={item.id} item={item} />
         ))}
+        {evidenceItems.length === 0 && <p style={font(12, 400, '#aaa')}>No evidence items yet.</p>}
       </AccordionSection>
 
       {/* Learning Journal Entries */}
-      <AccordionSection title="Learning Journal Entries" defaultOpen={false}>
-        {demoJournalEntries.map((entry) => (
+      <AccordionSection title={`Learning Journal Entries (${journalItems.length})`} defaultOpen={false}>
+        {journalItems.map((entry: any) => (
           <JournalEntryItem key={entry.id} entry={entry} />
         ))}
+        {journalItems.length === 0 && <p style={font(12, 400, '#aaa')}>No journal entries yet.</p>}
       </AccordionSection>
 
       {/* Progress Reviews */}
