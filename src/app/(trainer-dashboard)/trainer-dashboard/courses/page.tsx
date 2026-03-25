@@ -35,6 +35,12 @@ interface Course {
   _id: string; title: string; description?: string; category?: string
   status?: string; thumbnailEmoji?: string; enrolledUsers?: string[]
   createdAt?: string; courseModules?: CourseModule[]
+  /** Annotated by backend: true if trainer created this course */
+  isOwner?: boolean
+  /** Annotated by backend: true if trainer has any form of access (own or assigned) */
+  trainerHasAccess?: boolean
+  /** Trainers explicitly given access by admin */
+  assignedTrainers?: string[]
 }
 interface Learner { _id: string; firstName: string; lastName: string; email: string }
 
@@ -266,14 +272,14 @@ export default function TrainerCoursesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: BORDER }}>
-                  {['Course', 'Modules', 'Enrolled', 'Status', 'Actions'].map(h => (
+                  {['Course', 'Modules', 'Enrolled', 'Status', 'Access', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', ...f(11, 600, MUTED), textTransform: 'uppercase', letterSpacing: '0.4px' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {displayed.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: 48, textAlign: 'center', ...f(14, 400, MUTED) }}>
+                  <tr><td colSpan={6} style={{ padding: 48, textAlign: 'center', ...f(14, 400, MUTED) }}>
                     No courses yet — create your first one!
                   </td></tr>
                 )}
@@ -304,16 +310,27 @@ export default function TrainerCoursesPage() {
                         ? <Badge color="#15803d" bg="rgba(34,197,94,0.1)">Published</Badge>
                         : <Badge color={MUTED} bg="rgba(28,28,28,0.06)">{c.status ?? 'Draft'}</Badge>}
                     </td>
+                    {/* Access source badge */}
+                    <td style={{ padding: '14px 12px' }}>
+                      {c.isOwner !== false
+                        ? <Badge color="#1d4ed8" bg="rgba(59,130,246,0.09)">✏️ Created by me</Badge>
+                        : <Badge color="#7c3aed" bg="rgba(124,58,237,0.09)">🔑 Admin access</Badge>}
+                    </td>
                     <td style={{ padding: '14px 12px' }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button style={{ ...btnSecondary, fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
-                          onClick={() => openEdit(c)}>Edit</button>
+                        {/* Edit/Delete only available for own courses */}
+                        {c.isOwner !== false && (
+                          <button style={{ ...btnSecondary, fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
+                            onClick={() => openEdit(c)}>Edit</button>
+                        )}
                         <button style={{ ...btnSecondary, fontSize: 12, padding: '5px 10px', borderRadius: 8, color: INDIGO, borderColor: INDIGO }}
                           onClick={() => openEnroll(c)}>
                           Enroll ({myLearners.length})
                         </button>
-                        <button style={{ ...btnSecondary, fontSize: 12, padding: '5px 10px', borderRadius: 8, color: RED }}
-                          onClick={() => setDeleteCourse(c)}>Delete</button>
+                        {c.isOwner !== false && (
+                          <button style={{ ...btnSecondary, fontSize: 12, padding: '5px 10px', borderRadius: 8, color: RED }}
+                            onClick={() => setDeleteCourse(c)}>Delete</button>
+                        )}
                       </div>
                     </td>
                   </tr>
