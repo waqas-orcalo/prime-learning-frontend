@@ -13,55 +13,266 @@ function initials(first: string, last: string) {
   return `${first?.[0] ?? ''}${last?.[0] ?? ''}`.toUpperCase()
 }
 
+function getStatusFromProgress(percent: number): 'On Track' | 'Behind' | 'At Risk' {
+  if (percent >= 60) return 'On Track'
+  if (percent >= 30) return 'Behind'
+  return 'At Risk'
+}
+
+function getStatusBadgeColors(status: string) {
+  switch (status) {
+    case 'On Track':
+      return { bg: '#dcfce7', color: '#15803d' }
+    case 'Behind':
+      return { bg: '#fef3c7', color: '#92400e' }
+    case 'At Risk':
+      return { bg: '#fee2e2', color: '#b91c1c' }
+    default:
+      return { bg: '#f3f4f6', color: '#6b7280' }
+  }
+}
+
+function getProgressBarColor(status: string): string {
+  switch (status) {
+    case 'On Track':
+      return '#15803d'
+    case 'Behind':
+      return '#92400e'
+    case 'At Risk':
+      return '#b91c1c'
+    default:
+      return '#6b7280'
+  }
+}
+
 function Avatar({ firstName, lastName, index }: { firstName: string; lastName: string; index: number }) {
   return (
     <div style={{
-      width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+      width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
       background: AVATAR_COLORS[index % AVATAR_COLORS.length],
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <span style={font(14, 600, '#fff')}>{initials(firstName, lastName)}</span>
+      <span style={font(16, 600, '#fff')}>{initials(firstName, lastName)}</span>
     </div>
+  )
+}
+
+function FilterChip({
+  label,
+  count,
+  isActive,
+  onClick,
+}: {
+  label: string
+  count?: number
+  isActive: boolean
+  onClick: () => void
+}) {
+  const bgColor = isActive ? '#1c1c1c' : '#fff'
+  const textColor = isActive ? '#fff' : '#1c1c1c'
+  const borderColor = isActive ? '#1c1c1c' : 'rgba(28,28,28,0.15)'
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 16px',
+        borderRadius: 8,
+        border: `1px solid ${borderColor}`,
+        background: bgColor,
+        ...font(13, 500, textColor),
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+      {count !== undefined && label !== 'All' && <span>({count})</span>}
+    </button>
   )
 }
 
 function LearnerCard({ learner, index }: { learner: any; index: number }) {
   const fullName = `${learner.firstName} ${learner.lastName}`
-  const status = learner.status ?? 'active'
-  const statusColor = status === 'active' ? '#16a34a' : status === 'inactive' ? '#6b7280' : '#d97706'
+
+  // Mock programme data
+  const programmes = ['Level 3 Business Admin', 'Level 5 Operations Mgmt', 'Level 2 Customer Service']
+  const programme = programmes[index % programmes.length]
+
+  // Mock employer data
+  const employers = ['Acme Corp', 'TechStart Ltd', 'Global Services']
+  const employer = employers[index % employers.length]
+
+  // Derive progress from index
+  const progressPercent = 40 + ((index * 13) % 55)
+  const completedUnits = Math.floor((progressPercent / 100) * 8)
+  const totalUnits = 8
+
+  // Get status based on progress
+  const status = getStatusFromProgress(progressPercent)
+  const statusColors = getStatusBadgeColors(status)
+  const progressBarColor = getProgressBarColor(status)
+
+  // Mock pending tasks
+  const pendingTasks = (index % 5) + 1
+
+  // Mock unread messages
+  const unreadMessages = index % 3
+
+  // Mock last activity
+  const activities = ['2 hours ago', 'Yesterday', '3 days ago']
+  const lastActivity = activities[index % activities.length]
 
   return (
-    <div style={{
-      border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, padding: '18px 20px',
-      display: 'flex', flexDirection: 'column', gap: 14,
-      background: '#fff',
-    }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div
+      style={{
+        border: '1px solid rgba(28,28,28,0.1)',
+        borderRadius: 12,
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        background: '#fff',
+      }}
+    >
+      {/* Top row: Avatar + Name/Programme/Employer + Status Badge */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <Avatar firstName={learner.firstName} lastName={learner.lastName} index={index} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...font(14, 600), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fullName}</div>
-          <div style={{ ...font(12, 400, '#888'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{learner.email}</div>
+          <div style={{ ...font(14, 600), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {fullName}
+          </div>
+          <div style={{ ...font(12, 400, '#666'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {programme}
+          </div>
+          <div style={{ ...font(12, 400, '#999'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {employer}
+          </div>
         </div>
-        <span style={{
-          padding: '3px 10px', borderRadius: 20,
-          background: status === 'active' ? '#dcfce7' : '#f3f4f6',
-          color: statusColor, ...font(11, 500, statusColor),
-        }}>
-          {status.charAt(0).toUpperCase() + status.slice(1)}
+        <span
+          style={{
+            padding: '4px 10px',
+            borderRadius: 20,
+            background: statusColors.bg,
+            color: statusColors.color,
+            ...font(11, 500, statusColors.color),
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {status}
         </span>
       </div>
 
-      {/* Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={font(11, 400, '#aaa')}>
-          Joined {new Date(learner.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-        <button style={{
-          padding: '5px 14px', background: '#1c1c1c', color: '#fff',
-          border: 'none', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff'),
-        }}>
-          View Profile
+      {/* Progress section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ ...font(12, 600, '#1c1c1c') }}>Overall Progress</div>
+        <div style={{ ...font(12, 400, '#666') }}>
+          {completedUnits}/{totalUnits} units · {progressPercent}%
+        </div>
+        <div
+          style={{
+            width: '100%',
+            height: 6,
+            background: 'rgba(28,28,28,0.08)',
+            borderRadius: 3,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${progressPercent}%`,
+              background: progressBarColor,
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Bottom row: Meta items + View profile button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#666', flex: 1, minWidth: 0 }}>
+          {/* Pending tasks */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+            <span style={font(11, 400, '#666')}>
+              {pendingTasks} task{pendingTasks !== 1 ? 's' : ''}
+            </span>
+            {pendingTasks > 3 && (
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  ...font(10, 700, '#fff'),
+                }}
+              >
+                !
+              </div>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+            {unreadMessages > 0 ? (
+              <>
+                <span style={font(11, 400, '#666')}>{unreadMessages} new</span>
+                <div
+                  style={{
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    background: '#3b5bdb',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    ...font(10, 600, '#fff'),
+                  }}
+                >
+                  {unreadMessages}
+                </div>
+              </>
+            ) : (
+              <span style={font(11, 400, '#999')}>No messages</span>
+            )}
+          </div>
+
+          {/* Last activity */}
+          <span style={font(11, 400, '#999')}>Last active {lastActivity}</span>
+        </div>
+
+        {/* View profile button */}
+        <button
+          style={{
+            padding: '6px 14px',
+            background: '#fff',
+            color: '#1c1c1c',
+            border: '1px solid rgba(28,28,28,0.2)',
+            borderRadius: 6,
+            cursor: 'pointer',
+            ...font(12, 500, '#1c1c1c'),
+            whiteSpace: 'nowrap',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#f5f5f5'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.3)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#fff'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.2)'
+          }}
+        >
+          View profile
         </button>
       </div>
     </div>
@@ -70,76 +281,156 @@ function LearnerCard({ learner, index }: { learner: any; index: number }) {
 
 function SkeletonCard() {
   return (
-    <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, padding: '18px 20px', background: '#fff' }}>
+    <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, padding: '16px', background: '#fff' }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-        <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#f0f0f0' }} />
+        <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f0f0f0' }} />
         <div style={{ flex: 1 }}>
           <div style={{ height: 14, width: '60%', background: '#f0f0f0', borderRadius: 4, marginBottom: 6 }} />
-          <div style={{ height: 12, width: '80%', background: '#f0f0f0', borderRadius: 4 }} />
+          <div style={{ height: 12, width: '80%', background: '#f0f0f0', borderRadius: 4, marginBottom: 4 }} />
+          <div style={{ height: 12, width: '70%', background: '#f0f0f0', borderRadius: 4 }} />
         </div>
       </div>
-      <div style={{ height: 26, background: '#f0f0f0', borderRadius: 6 }} />
+      <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3, marginBottom: 12 }} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ height: 20, width: '20%', background: '#f0f0f0', borderRadius: 4 }} />
+        <div style={{ height: 20, width: '25%', background: '#f0f0f0', borderRadius: 4 }} />
+      </div>
     </div>
   )
 }
 
 function LearnersInner() {
-  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<'All' | 'On Track' | 'Behind' | 'At Risk'>('All')
 
-  const { data, isLoading, isError } = useTrainerLearners({ limit: 50, search: search || undefined })
+  const { data, isLoading, isError } = useTrainerLearners({ limit: 50 })
   const learners = data?.data ?? []
 
+  // Calculate status counts
+  const onTrackCount = learners.filter((l, i) => {
+    const progressPercent = 40 + ((i * 13) % 55)
+    return getStatusFromProgress(progressPercent) === 'On Track'
+  }).length
+  const behindCount = learners.filter((l, i) => {
+    const progressPercent = 40 + ((i * 13) % 55)
+    return getStatusFromProgress(progressPercent) === 'Behind'
+  }).length
+  const atRiskCount = learners.filter((l, i) => {
+    const progressPercent = 40 + ((i * 13) % 55)
+    return getStatusFromProgress(progressPercent) === 'At Risk'
+  }).length
+
+  // Filter learners based on selected filter
+  const filteredLearners =
+    filter === 'All'
+      ? learners
+      : learners.filter((l, i) => {
+          const progressPercent = 40 + ((i * 13) % 55)
+          return getStatusFromProgress(progressPercent) === filter
+        })
+
   return (
-    <div style={{ maxWidth: 1100, ...FF }}>
+    <div style={{ maxWidth: 1200, ...FF }}>
       <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={font(22, 700)}>My Learners</h1>
-        {data?.pagination && (
-          <span style={font(13, 400, '#888')}>{data.pagination.total} learner{data.pagination.total !== 1 ? 's' : ''}</span>
-        )}
-      </div>
-
-      {/* Search */}
       <div style={{ marginBottom: 24 }}>
-        <input
-          type="text"
-          placeholder="Search learners by name or email..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', maxWidth: 400, padding: '9px 14px',
-            border: '1px solid rgba(28,28,28,0.18)', borderRadius: 8,
-            ...font(13), outline: 'none', background: '#fff', boxSizing: 'border-box',
-          }}
-        />
+        <h1 style={font(28, 700)}>My Learners</h1>
       </div>
 
-      {/* Error */}
+      {/* Top bar with filter chips and more filters button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        {/* Filter chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <FilterChip label="All" isActive={filter === 'All'} onClick={() => setFilter('All')} />
+          <FilterChip
+            label="On Track"
+            count={onTrackCount}
+            isActive={filter === 'On Track'}
+            onClick={() => setFilter('On Track')}
+          />
+          <FilterChip
+            label="Behind"
+            count={behindCount}
+            isActive={filter === 'Behind'}
+            onClick={() => setFilter('Behind')}
+          />
+          <FilterChip
+            label="At Risk"
+            count={atRiskCount}
+            isActive={filter === 'At Risk'}
+            onClick={() => setFilter('At Risk')}
+          />
+        </div>
+
+        {/* More filters button */}
+        <button
+          style={{
+            marginLeft: 'auto',
+            padding: '8px 14px',
+            background: '#fff',
+            color: '#1c1c1c',
+            border: '1px solid rgba(28,28,28,0.2)',
+            borderRadius: 6,
+            cursor: 'pointer',
+            ...font(12, 500, '#1c1c1c'),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#f5f5f5'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.3)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#fff'
+            e.currentTarget.style.borderColor = 'rgba(28,28,28,0.2)'
+          }}
+        >
+          <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <line x1={2} y1={4} x2={14} y2={4} />
+            <line x1={3} y1={8} x2={13} y2={8} />
+            <line x1={4} y1={12} x2={12} y2={12} />
+          </svg>
+          More filters
+        </button>
+      </div>
+
+      {/* Error state */}
       {isError && (
-        <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, marginBottom: 24 }}>
           <span style={font(13, 400, '#ef4444')}>Failed to load learners. Please try again.</span>
         </div>
       )}
 
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-          : learners.length === 0
-            ? (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 0', color: '#aaa' }}>
-                <p style={font(14)}>No learners found.</p>
-              </div>
-            )
-            : learners.map((learner, i) => <LearnerCard key={learner._id} learner={learner} index={i} />)
-        }
-      </div>
+      {/* Loading state */}
+      {isLoading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : filteredLearners.length === 0 ? (
+        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+          <p style={font(16, 400, '#aaa')}>
+            {filter === 'All' ? 'No learners found.' : `No learners ${filter.toLowerCase()}.`}
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+          {filteredLearners.map((learner, i) => (
+            <LearnerCard key={learner._id} learner={learner} index={learners.indexOf(learner)} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function LearnersPage() {
-  return <Suspense><LearnersInner /></Suspense>
+  return (
+    <Suspense fallback={<div style={{ padding: '60px 20px', textAlign: 'center', color: '#aaa' }}>Loading learners...</div>}>
+      <LearnersInner />
+    </Suspense>
+  )
 }
