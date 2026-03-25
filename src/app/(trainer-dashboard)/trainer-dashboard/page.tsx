@@ -617,8 +617,6 @@ function TrainerDashboardContent() {
   const c = charts
   const s = stats
   const CARD: React.CSSProperties = { border: '1px solid #E8E8ED', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column' }
-  const GRID3: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }
-  const GRID2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }
 
   // ── Summary stat widget configs ──────────────────────────────────────────────
   const statWidgets = [
@@ -727,7 +725,7 @@ function TrainerDashboardContent() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
       {/* ── Summary stat widgets ──────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 12, marginBottom: 18 }}>
+      <div className="t-stat-grid">
         {statWidgets.map((w) => (
           <div key={w.label} style={{
             background: w.bg, borderRadius: 12, padding: '14px 14px 12px',
@@ -749,7 +747,7 @@ function TrainerDashboardContent() {
       </div>
 
       {/* ── Row 1: Calendar · Completed Visits · Planned Visits ─────────────── */}
-      <div style={GRID3}>
+      <div className="t-grid-3">
 
         <NavCalendar />
 
@@ -781,7 +779,7 @@ function TrainerDashboardContent() {
       </div>
 
       {/* ── Row 2: IQA Action · Learners Due · Last Logged In ───────────────── */}
-      <div style={GRID3}>
+      <div className="t-grid-3">
 
         {/* IQA Action */}
         <div style={CARD}>
@@ -848,7 +846,7 @@ function TrainerDashboardContent() {
       </div>
 
       {/* ── Row 3: On Target · On Target OTJ · No OTJ Activity ──────────────── */}
-      <div style={GRID3}>
+      <div className="t-grid-3">
 
         {/* Learners on Target */}
         <div style={CARD}>
@@ -907,7 +905,7 @@ function TrainerDashboardContent() {
       </div>
 
       {/* ── Row 4: Progress Review Due · Task Due ────────────────────────────── */}
-      <div style={GRID2}>
+      <div className="t-grid-2">
 
         {/* Progress review due */}
         <div style={CARD}>

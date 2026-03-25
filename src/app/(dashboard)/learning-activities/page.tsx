@@ -255,10 +255,10 @@ export default function LearningActivitiesPage() {
       </div>
 
       {/* Table */}
-      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', overflow: 'hidden' }}>
+      <div className="l-table-wrap" style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px 0px rgba(13,10,44,0.08)', overflow: 'hidden' }}>
         {/* Table header */}
         <div style={{ backgroundColor: 'rgba(28,28,28,0.03)', padding: '0 20px', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
             <thead>
               <tr>
                 {[
@@ -292,7 +292,7 @@ export default function LearningActivitiesPage() {
               No learning activities found.
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
               <tbody>
                 {activities.map((row) => (
                   <tr key={row.id} style={{ borderBottom: '1px solid rgba(28,28,28,0.06)' }}>

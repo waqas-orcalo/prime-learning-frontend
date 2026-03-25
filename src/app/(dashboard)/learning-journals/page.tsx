@@ -178,7 +178,7 @@ function EntryForm({
       <CategoryDropdown value={form.category} onChange={v => onChange({ category: v })} />
 
       {/* Date / Time / Duration / Activity type */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr 1fr 1.25fr', gap: '8px' }}>
+      <div className="l-grid-4" style={{ gap: '8px' }}>
 
         {/* Date */}
         <div style={{ ...fieldBox, position: 'relative' }}>
@@ -351,7 +351,7 @@ function EntryView({ entry, onEdit, onDelete }: { entry: JournalEntry; onEdit: (
       </div>
 
       {/* Date / Time / Duration / Activity type */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr 1fr 1.25fr', gap: '8px' }}>
+      <div className="l-grid-4" style={{ gap: '8px' }}>
         <div style={fieldBox}>
           <span style={fieldLabel}>Date</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

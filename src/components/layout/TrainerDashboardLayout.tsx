@@ -1,17 +1,31 @@
+'use client'
+
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import TrainerSidebar from './TrainerSidebar'
 import Header from './Header'
 
 export default function TrainerDashboardLayout({ children }: { children: ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f7f9fb' }}>
-      <TrainerSidebar />
+      {/* Mobile overlay backdrop */}
+      <div
+        className={`t-sidebar-overlay${sidebarOpen ? ' open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Sidebar — gets .open class on mobile to slide in */}
+      <TrainerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <Header />
-        <main style={{
-          flex: 1, overflowY: 'auto',
-          padding: '24px 28px',
-        }}>
+        <Header
+          onHamburgerClick={() => setSidebarOpen(o => !o)}
+        />
+        <main className="t-main-content">
           {children}
         </main>
       </div>

@@ -56,14 +56,14 @@ function PrimeLogo() {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
 
   const isActive = (href: string) =>
     href === '/dashboard' ? pathname === href : pathname.startsWith(href)
 
   return (
-    <aside style={{
+    <aside className={`l-sidebar${isOpen ? ' open' : ''}`} style={{
       width: '212px', flexShrink: 0,
       height: '100vh', position: 'sticky', top: 0,
       backgroundColor: '#fff',
@@ -73,9 +73,25 @@ export default function Sidebar() {
       padding: '16px',
       gap: '8px',
     }}>
-      {/* Logo */}
-      <div style={{ height: '55px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', flexShrink: 0 }}>
+      {/* Logo + mobile close button */}
+      <div style={{ height: '55px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', flexShrink: 0 }}>
         <PrimeLogo />
+        {/* Close button — hidden on desktop via CSS */}
+        <button
+          className="l-sidebar-close"
+          onClick={onClose}
+          aria-label="Close menu"
+          style={{
+            display: 'none',
+            alignItems: 'center', justifyContent: 'center',
+            width: '28px', height: '28px',
+            background: 'none', border: '1px solid rgba(28,28,28,0.15)',
+            borderRadius: '6px', cursor: 'pointer', flexShrink: 0,
+            fontSize: '16px', color: '#1c1c1c',
+          }}
+        >
+          ×
+        </button>
       </div>
 
       {/* Nav sections */}
@@ -97,6 +113,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onClose}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
                   padding: '8px',

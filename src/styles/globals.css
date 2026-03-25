@@ -72,3 +72,339 @@ html, body {
 /* Transitions */
 button { transition: all 0.15s ease; }
 a { color: inherit; text-decoration: none; }
+
+/* ── Trainer Module — Responsive Utilities ───────────────────────────────── */
+
+/* Sidebar drawer overlay */
+.t-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 199;
+}
+.t-sidebar-overlay.open { display: block; }
+
+/* Hamburger button — hidden on desktop */
+.t-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: 1px solid rgba(28,28,28,0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Stat cards row */
+.t-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+/* 3-col chart row */
+.t-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* 2-col chart row */
+.t-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+/* Reports grid – set per row via data-cols */
+.t-reports-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.t-reports-row[data-cols="4"] { grid-template-columns: repeat(4, 1fr); }
+.t-reports-row[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
+.t-reports-row[data-cols="2"] { grid-template-columns: repeat(2, 1fr); }
+
+/* Main content padding */
+.t-main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* ── Breakpoint: tablet (≤1024px) ──────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .t-stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .t-grid-3    { grid-template-columns: repeat(2, 1fr); }
+  .t-reports-row[data-cols="4"] { grid-template-columns: repeat(2, 1fr); }
+  .t-reports-row[data-cols="3"] { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Breakpoint: mobile (≤768px) ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Show hamburger */
+  .t-hamburger { display: flex; }
+
+  /* Show sidebar close button */
+  .t-sidebar-close { display: flex !important; }
+
+  /* Sidebar becomes a fixed drawer */
+  .t-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh !important;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+  .t-sidebar.open { transform: translateX(0); }
+
+  /* Reduce main padding */
+  .t-main-content { padding: 16px 14px; }
+
+  /* Grids collapse to 1 col */
+  .t-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .t-grid-3    { grid-template-columns: 1fr; }
+  .t-grid-2    { grid-template-columns: 1fr; }
+  .t-reports-row[data-cols="4"],
+  .t-reports-row[data-cols="3"],
+  .t-reports-row[data-cols="2"] { grid-template-columns: 1fr; }
+
+  /* Tasks table font size */
+  .t-table-wrap { font-size: 12px; }
+
+  /* Hide less-important table columns on mobile */
+  .t-col-hide-mobile { display: none; }
+}
+
+/* ── Breakpoint: small mobile (≤480px) ─────────────────────────────────── */
+@media (max-width: 480px) {
+  .t-stat-grid  { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .t-main-content { padding: 12px 10px; }
+}
+
+/* ── Learner Module — Responsive Utilities ───────────────────────────────── */
+
+/* Sidebar drawer overlay */
+.l-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 199;
+}
+.l-sidebar-overlay.open { display: block; }
+
+/* Main content padding */
+.l-main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* Flex row of cards (chart cards, info cards) — wrap on smaller screens */
+.l-card-row {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+/* Black info bar — horizontal flex */
+.l-info-bar {
+  background-color: #1c1c1c;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  margin-bottom: 30px;
+}
+
+/* Table scroll wrapper */
+.l-table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+
+/* Filter / function bar */
+.l-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px;
+}
+
+/* Bottom split row (learning aims + side panel) */
+.l-bottom-row {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+}
+
+/* ── Breakpoint: tablet (≤1024px) ──────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .l-card-row   { flex-wrap: wrap; gap: 20px; }
+  .l-bottom-row { flex-wrap: wrap; gap: 20px; }
+}
+
+/* ── Breakpoint: mobile (≤768px) ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Show sidebar close button */
+  .l-sidebar-close { display: flex !important; }
+
+  /* Sidebar becomes a fixed drawer */
+  .l-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh !important;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  }
+  .l-sidebar.open { transform: translateX(0); }
+
+  /* Reduce main padding */
+  .l-main-content { padding: 16px 14px; }
+
+  /* All flex rows become single column */
+  .l-card-row   { flex-direction: column; gap: 16px; margin-bottom: 16px; }
+  .l-bottom-row { flex-direction: column; gap: 16px; }
+
+  /* Info bar stacks vertically */
+  .l-info-bar { flex-direction: column; gap: 4px; padding: 12px; }
+
+  /* Filter bar stacks */
+  .l-filter-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+
+  /* Make chart cards full-width */
+  .l-card-row > * { width: 100% !important; min-width: 0 !important; flex-shrink: 0; }
+}
+
+/* ── Breakpoint: small mobile (≤480px) ─────────────────────────────────── */
+@media (max-width: 480px) {
+  .l-main-content { padding: 12px 10px; }
+}
+
+/* Courses grid — cards resize on mobile */
+.l-courses-grid > * {
+  flex: 1 1 calc(33.333% - 12px);
+  max-width: calc(33.333% - 12px);
+}
+@media (max-width: 768px) {
+  .l-courses-grid > * {
+    flex: 1 1 calc(50% - 8px);
+    max-width: calc(50% - 8px) !important;
+  }
+}
+@media (max-width: 480px) {
+  .l-courses-grid > * {
+    flex: 1 1 100%;
+    max-width: 100% !important;
+  }
+}
+
+/* ── Learner responsive grid utilities ──────────────────────────────────── */
+.l-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.l-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.l-grid-4 { display: grid; grid-template-columns: 1fr 1.15fr 1fr 1.25fr; }
+
+@media (max-width: 1024px) {
+  .l-grid-3 { grid-template-columns: 1fr 1fr; }
+  .l-grid-4 { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 768px) {
+  .l-grid-2 { grid-template-columns: 1fr; gap: 16px; }
+  .l-grid-3 { grid-template-columns: 1fr; gap: 12px; }
+  .l-grid-4 { grid-template-columns: 1fr; gap: 8px; }
+}
+
+/* ── Header — Responsive ─────────────────────────────────────────────────── */
+
+/* Breadcrumbs: last crumb clamps to available space */
+.h-breadcrumbs {
+  min-width: 0;
+  flex: 1;
+}
+.h-breadcrumbs span {
+  flex-shrink: 0;
+}
+.h-breadcrumbs span:last-child {
+  min-width: 0;
+  overflow: hidden;
+}
+.h-breadcrumbs span:last-child button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Profile button: auto-width so it shrinks when text is hidden */
+.h-profile-btn {
+  width: 168px;
+}
+
+/* ── Tablet (≤1024px) ────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .h-search { width: 160px !important; }
+}
+
+/* ── Mobile (≤768px) ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Tighter header padding */
+  .h-header {
+    padding: 0 14px !important;
+    gap: 8px !important;
+  }
+
+  /* Hide search bar completely */
+  .h-search { display: none !important; }
+
+  /* Hide profile name, role and caret — show avatar only */
+  .h-profile-text  { display: none !important; }
+  .h-profile-caret { display: none !important; }
+
+  /* Shrink profile button to fit just the avatar */
+  .h-profile-btn { width: auto !important; padding: 6px !important; }
+
+  /* Sidebar nav links — bigger touch targets */
+  .l-sidebar a,
+  .t-sidebar a {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  /* Sidebar width on mobile drawer */
+  .l-sidebar,
+  .t-sidebar {
+    width: 240px !important;
+  }
+}
+
+/* ── Small mobile (≤480px) ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .h-header { padding: 0 10px !important; gap: 6px !important; }
+
+  /* Shrink icon buttons */
+  .h-header button[style*="28px"] {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* Sidebar full-width on very small screens */
+  .l-sidebar,
+  .t-sidebar {
+    width: 80vw !important;
+    max-width: 280px !important;
+  }
+}

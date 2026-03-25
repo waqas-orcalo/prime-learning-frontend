@@ -227,8 +227,15 @@ function TasksInner() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px', ...FF }}>
-      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+    <div style={{ maxWidth: 1200, margin: '0 auto', ...FF }}>
+      <style>{`
+        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @media(max-width:768px){
+          .tasks-filter-bar { flex-direction: column !important; align-items: flex-start !important; }
+          .tasks-filter-bar > div { width: 100%; }
+          .tasks-filter-bar select { width: 100%; }
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
@@ -236,7 +243,7 @@ function TasksInner() {
       </div>
 
       {/* Filter bar */}
-      <div style={{
+      <div className="tasks-filter-bar" style={{
         display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap',
         padding: '12px 16px', background: '#fafafa', borderRadius: 8
       }}>

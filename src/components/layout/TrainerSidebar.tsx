@@ -44,26 +44,49 @@ function PrimeLogo() {
   )
 }
 
-export default function TrainerSidebar() {
+interface TrainerSidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export default function TrainerSidebar({ isOpen = false, onClose }: TrainerSidebarProps) {
   const pathname = usePathname()
 
   const isActive = (href: string, exact: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
 
   return (
-    <aside style={{
-      width: '212px', flexShrink: 0,
-      height: '100vh', position: 'sticky', top: 0,
-      backgroundColor: '#fff',
-      borderRight: '1px solid rgba(28,28,28,0.1)',
-      display: 'flex', flexDirection: 'column',
-      overflowY: 'auto', overflowX: 'hidden',
-      padding: '16px',
-      gap: '4px',
-    }}>
-      {/* Logo */}
-      <div style={{ height: '55px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', flexShrink: 0, marginBottom: 4 }}>
+    <aside
+      className={`t-sidebar${isOpen ? ' open' : ''}`}
+      style={{
+        width: '212px', flexShrink: 0,
+        height: '100vh',
+        backgroundColor: '#fff',
+        borderRight: '1px solid rgba(28,28,28,0.1)',
+        display: 'flex', flexDirection: 'column',
+        overflowY: 'auto', overflowX: 'hidden',
+        padding: '16px',
+        gap: '4px',
+      }}
+    >
+      {/* Logo + close button row on mobile */}
+      <div style={{ height: '55px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', flexShrink: 0, marginBottom: 4 }}>
         <PrimeLogo />
+        {/* Close button — only visible on mobile via CSS */}
+        <button
+          onClick={onClose}
+          aria-label="Close menu"
+          style={{
+            display: 'none', // shown via CSS on mobile
+            background: 'none', border: 'none', cursor: 'pointer',
+            padding: 4, borderRadius: 6, color: '#666',
+          }}
+          className="t-sidebar-close"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
 
       {/* Nav items */}
@@ -73,6 +96,7 @@ export default function TrainerSidebar() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onClose}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '8px',

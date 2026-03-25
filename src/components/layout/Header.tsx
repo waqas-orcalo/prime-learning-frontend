@@ -372,7 +372,7 @@ function timeAgo(dateStr?: string) {
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
-export default function Header() {
+export default function Header({ onHamburgerClick }: { onHamburgerClick?: () => void }) {
   const pathname  = usePathname()
   const router    = useRouter()
   const { data: session } = useSession()
@@ -517,6 +517,7 @@ export default function Header() {
 
       <header
         ref={headerRef}
+        className="h-header"
         style={{
           height: '72px', flexShrink: 0,
           backgroundColor: '#fff',
@@ -526,8 +527,24 @@ export default function Header() {
           position: 'sticky', top: 0, zIndex: 100,
         }}
       >
+        {/* Hamburger — only visible on mobile via CSS */}
+        {onHamburgerClick && (
+          <button
+            className="t-hamburger"
+            onClick={onHamburgerClick}
+            aria-label="Open menu"
+            style={{ color: '#1c1c1c' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <line x1="2" y1="4.5" x2="16" y2="4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              <line x1="2" y1="9"   x2="16" y2="9"   stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              <line x1="2" y1="13.5" x2="16" y2="13.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
+
         {/* Breadcrumbs */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div className="h-breadcrumbs" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', minWidth: 0 }}>
           {crumbs.map((crumb, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               {i > 0 && <span style={{ ...font(14, 400, 'rgba(28,28,28,0.2)') }}>/</span>}
@@ -538,8 +555,8 @@ export default function Header() {
           ))}
         </div>
 
-        {/* Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', padding: '4px 8px', height: '28px', width: '219px', flexShrink: 0 }}>
+        {/* Search — hidden on mobile */}
+        <div className="h-search" style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', padding: '4px 8px', height: '28px', width: '219px', flexShrink: 0 }}>
           <SearchIcon />
           <span style={{ ...font(14, 400, 'rgba(28,28,28,0.4)'), flex: 1, lineHeight: '20px' }}>Search for account</span>
           <span style={{ ...font(12, 400, 'rgba(28,28,28,0.4)') }}>⌘/</span>
@@ -685,6 +702,7 @@ export default function Header() {
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => toggle('profile')}
+            className="h-profile-btn"
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer', width: '168px' }}
           >
             {/* Avatar with status dot — dynamic from API */}
@@ -697,11 +715,12 @@ export default function Header() {
                 border: '1.5px solid #fff',
               }} />
             </div>
-            <div style={{ flex: 1, minWidth: 0, textAlign: 'left' as const }}>
+            {/* Name + role + caret — hidden on mobile */}
+            <div className="h-profile-text" style={{ flex: 1, minWidth: 0, textAlign: 'left' as const }}>
               <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{displayName}</div>
               <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>{displayRole}</div>
             </div>
-            <CaretDownIcon />
+            <span className="h-profile-caret"><CaretDownIcon /></span>
           </button>
 
           {openDropdown === 'profile' && (
@@ -714,47 +733,21 @@ export default function Header() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: presence.showOnlineStatus ? currentDotColor : 'rgba(28,28,28,0.2)', display: 'inline-block' }} />
-                  <span style={{ ...font(13, 400) }}>Set Status</span>
-                  <span style={{ ...font(11, 400, 'rgba(28,28,28,0.4)') }}>({presence.presenceStatus})</span>
+                  <span style={{ ...font(13, 400), lineHeight: '18px' }}>Set a Status</span>
                 </div>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
-              </div>
-
-              {/* My Profile */}
-              <div onClick={() => { router.push('/profile'); setOpenDropdown(null) }} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span style={{ ...font(13, 400) }}>My Profile</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
-              </div>
-
-              {/* Email preference */}
-              <div onClick={() => { router.push('/my-account'); setOpenDropdown(null) }} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span style={{ ...font(13, 400) }}>Email preference</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
-              </div>
-
-              {/* My Activity */}
-              <div onClick={() => { router.push('/activity-log'); setOpenDropdown(null) }} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span style={{ ...font(13, 400) }}>My Activity</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
-              </div>
-
-              {/* User Guide */}
-              <div onClick={() => { router.push('/help'); setOpenDropdown(null) }} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span style={{ ...font(13, 400) }}>User Guide</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
-              </div>
-
-              {/* System Announcements */}
-              <div onClick={() => { router.push('/dashboard'); setOpenDropdown(null) }} style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                <span style={{ ...font(13, 400) }}>System Announcements</span>
-                <span style={{ color: 'rgba(28,28,28,0.3)', fontSize: '12px' }}>›</span>
+                <span style={{ ...font(12, 400, 'rgba(28,28,28,0.45)') }}>{presence.presenceStatus}</span>
               </div>
 
               {/* Sign Out */}
-              <div style={{ padding: '8px', borderTop: '1px solid rgba(28,28,28,0.08)' }}>
-                <button onClick={() => signOut({ callbackUrl: '/login' })} style={{ width: '100%', padding: '8px 12px', backgroundColor: 'rgba(244,63,94,0.08)', border: 'none', borderRadius: '8px', cursor: 'pointer', ...font(13, 600, '#e11d48') }}>
-                  Sign Out
-                </button>
+              <div
+                onClick={() => { setOpenDropdown(null); signOut({ callbackUrl: '/login' }) }}
+                style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round"/>
+                  <path d="M11 11l3-3-3-3M14 8H6" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{ ...font(13, 400, '#ef4444'), lineHeight: '18px' }}>Sign out</span>
               </div>
             </div>
           )}
