@@ -314,19 +314,6 @@ export default function LearningActivitiesPage() {
                     <td style={{ padding: '13px 8px', width: '150px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <StatusBadge status={row.status} />
-                        {row.status !== 'COMPLETED' && row.status !== 'CANCELLED' && (
-                          <button
-                            onClick={() => markComplete(row.id)}
-                            style={{
-                              padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e',
-                              backgroundColor: 'transparent', cursor: 'pointer',
-                              ...font(11, 500, '#22c55e'),
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            ✓ Complete
-                          </button>
-                        )}
                       </div>
                     </td>
                     <td style={{ padding: '13px 8px', width: '80px', textAlign: 'center' }}>

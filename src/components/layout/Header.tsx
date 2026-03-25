@@ -343,6 +343,23 @@ interface Notification {
   createdAt?: string
 }
 
+// ── Task type for header mini-list ─────────────────────────────────────────
+interface HeaderTask {
+  _id: string
+  title: string
+  status: string
+  priority: string
+  dueDate?: string
+}
+
+const TASK_STATUS_DOT: Record<string, string> = {
+  PENDING:     '#59a8d4',
+  IN_PROGRESS: '#8a8cd9',
+  COMPLETED:   '#4aa785',
+  OVERDUE:     '#f87171',
+  CANCELLED:   'rgba(28,28,28,0.3)',
+}
+
 function timeAgo(dateStr?: string) {
   if (!dateStr) return ''
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -376,6 +393,10 @@ export default function Header() {
   // ── Notifications state ──
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+
+  // ── Tasks state (header mini-list) ──
+  const [headerTasks, setHeaderTasks] = useState<HeaderTask[]>([])
+  const [activeTaskCount, setActiveTaskCount] = useState(0)
 
   const headerRef = useRef<HTMLDivElement>(null)
   const crumbs    = BREADCRUMB_MAP[pathname] ?? ['Dashboards']
@@ -413,6 +434,28 @@ export default function Header() {
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [fetchNotifications])
+
+  // Fetch tasks for header mini-list — on mount and every 60s
+  const fetchHeaderTasks = useCallback(() => {
+    if (!token) return
+    apiFetch<any>('/tasks?limit=5', token)
+      .then(d => {
+        const items: HeaderTask[] = Array.isArray(d?.data)
+          ? d.data
+          : (d?.data?.items ?? [])
+        setHeaderTasks(items.slice(0, 5))
+        // Badge = count of PENDING + IN_PROGRESS tasks (not completed/cancelled)
+        const active = items.filter(t => t.status === 'PENDING' || t.status === 'IN_PROGRESS').length
+        setActiveTaskCount(active)
+      })
+      .catch(() => {})
+  }, [token])
+
+  useEffect(() => {
+    fetchHeaderTasks()
+    const interval = setInterval(fetchHeaderTasks, 60000)
+    return () => clearInterval(interval)
+  }, [fetchHeaderTasks])
 
   const handleMarkAllRead = async () => {
     if (!token) return
@@ -506,24 +549,53 @@ export default function Header() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {/* Tasks */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => toggle('tasks')} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: openDropdown === 'tasks' ? 'rgba(28,28,28,0.08)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button
+              onClick={() => { toggle('tasks'); fetchHeaderTasks() }}
+              style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: openDropdown === 'tasks' ? 'rgba(28,28,28,0.08)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
               <ClipboardIcon />
             </button>
-            <div style={{ position: 'absolute', top: '-2px', right: '-4px', width: '14px', height: '14px', borderRadius: '7px', backgroundColor: '#ff4747', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-              <span style={{ fontFamily: FF, fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>5</span>
-            </div>
+            {activeTaskCount > 0 && (
+              <div style={{ position: 'absolute', top: '-2px', right: '-4px', minWidth: '14px', height: '14px', borderRadius: '7px', backgroundColor: '#ff4747', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', padding: '0 3px' }}>
+                <span style={{ fontFamily: FF, fontSize: '9px', fontWeight: 600, color: '#fff', lineHeight: 1 }}>{activeTaskCount > 99 ? '99+' : activeTaskCount}</span>
+              </div>
+            )}
             {openDropdown === 'tasks' && (
-              <div style={{ position: 'absolute', top: '44px', right: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', border: '1px solid rgba(28,28,28,0.1)', width: '280px', zIndex: 200, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
+              <div style={{ position: 'absolute', top: '44px', right: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', border: '1px solid rgba(28,28,28,0.1)', width: '300px', zIndex: 200, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(28,28,28,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ ...font(14, 700) }}>My Tasks</span>
+                  {activeTaskCount > 0 && (
+                    <span style={{ ...font(11, 500, '#ff4747'), background: 'rgba(255,71,71,0.1)', borderRadius: 99, padding: '2px 7px' }}>
+                      {activeTaskCount} active
+                    </span>
+                  )}
                 </div>
-                {['Review evidence submission', 'Complete Unit 3 quiz', 'Attend mentor session'].map((t, i) => (
-                  <div key={i} style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: i === 1 ? '#5fc966' : '#9747ff', flexShrink: 0 }} />
-                    <span style={{ ...font(13, 400), flex: 1 }}>{t}</span>
+                {headerTasks.length === 0 ? (
+                  <div style={{ padding: '20px 16px', textAlign: 'center' as const }}>
+                    <span style={{ ...font(13, 400, 'rgba(28,28,28,0.4)') }}>No tasks assigned yet</span>
                   </div>
-                ))}
-                <button onClick={() => { router.push('/tasks'); setOpenDropdown(null) }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', ...font(13, 600) }}>
+                ) : (
+                  headerTasks.map(t => (
+                    <div
+                      key={t._id}
+                      onClick={() => { router.push('/tasks'); setOpenDropdown(null) }}
+                      style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                    >
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: TASK_STATUS_DOT[t.status] ?? '#ccc', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ ...font(13, t.status === 'PENDING' || t.status === 'IN_PROGRESS' ? 500 : 400), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{t.title}</div>
+                        <div style={{ ...font(11, 400, TASK_STATUS_DOT[t.status] ?? 'rgba(28,28,28,0.4)'), marginTop: 2 }}>
+                          {t.status === 'PENDING' ? 'Pending' : t.status === 'IN_PROGRESS' ? 'In Progress' : t.status === 'COMPLETED' ? 'Complete' : t.status === 'OVERDUE' ? 'Overdue' : t.status}
+                          {t.dueDate && ` · Due ${new Date(t.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <button
+                  onClick={() => { router.push('/tasks'); setOpenDropdown(null) }}
+                  style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' as const, ...font(13, 600) }}
+                >
                   Show All Tasks →
                 </button>
               </div>

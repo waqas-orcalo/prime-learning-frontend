@@ -358,6 +358,7 @@ export default function TaskDetailPage() {
       })
       setNewComment('')
       await loadComments()
+      await autoMarkCompleted()
     } catch (err: any) {
       setToast(err?.message ?? 'Failed to post comment')
       setTimeout(() => setToast(''), 3000)
@@ -406,6 +407,7 @@ export default function TaskDetailPage() {
       setToast('Timesheet entry added.')
       setTimeout(() => setToast(''), 3000)
       await loadTimesheetEntries()
+      await autoMarkCompleted()
     } catch (err: any) {
       setToast(err?.message ?? 'Failed to save timesheet entry')
       setTimeout(() => setToast(''), 3000)
@@ -442,6 +444,7 @@ export default function TaskDetailPage() {
       setDeclaration(res?.data)
       setToast('Declaration saved.')
       setTimeout(() => setToast(''), 3000)
+      await autoMarkCompleted()
     } catch (err: any) {
       setToast(err?.message ?? 'Failed to save declaration')
       setTimeout(() => setToast(''), 3000)
@@ -494,6 +497,21 @@ export default function TaskDetailPage() {
     }
   }
 
+  // ── Auto-complete: mark task COMPLETED after any submission ──────────────
+  const autoMarkCompleted = async () => {
+    if (!token || !task) return
+    if (task.status === 'COMPLETED' || task.status === 'CANCELLED') return
+    try {
+      await apiFetch(`/tasks/${task._id}/status`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+      setTask(prev => prev ? { ...prev, status: 'COMPLETED' } : prev)
+      setToast('Task marked as Completed.')
+      setTimeout(() => setToast(''), 4000)
+    } catch { /* silent — status update is best-effort */ }
+  }
+
   const handleSaveEvidence = async (quit = false) => {
     if (!token || !task) return
     setSavingEvidence(true)
@@ -506,6 +524,7 @@ export default function TaskDetailPage() {
       setTask(prev => prev ? { ...prev, evidence: evidenceText } : prev)
       setEvidenceMsg('Evidence saved.')
       setTimeout(() => setEvidenceMsg(''), 3000)
+      await autoMarkCompleted()
       if (quit) router.push('/tasks')
     } catch (err: any) {
       setEvidenceMsg(err?.message ?? 'Failed to save evidence')

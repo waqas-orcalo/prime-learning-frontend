@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -1155,6 +1155,7 @@ function TasksPage({ token }: { token: string }) {
   const [assignUsers, setAssignUsers] = useState<UserRecord[]>([])
   const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([])
   const [assigning, setAssigning]   = useState(false)
+  const [assignSuccess, setAssignSuccess] = useState('')
 
   const LIMIT = 10
 
@@ -1184,12 +1185,16 @@ function TasksPage({ token }: { token: string }) {
 
   useEffect(() => { load() }, [load])
 
-  // Load users for assign modal
+  // Load LEARNER users for assign modal
   useEffect(() => {
     if (!assignModal) return
-    apiFetch(`${apiBase()}/users?limit=100`, token)
+    apiFetch(`${apiBase()}/users?limit=100&role=LEARNER`, token)
       .then(r => r.json())
-      .then(b => setAssignUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
+      .then(b => {
+        const all: UserRecord[] = Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])
+        // Extra client-side filter in case backend doesn't support role query param
+        setAssignUsers(all.filter(u => (u as any).role === 'LEARNER'))
+      })
       .catch(() => {})
   }, [assignModal, token])
 
@@ -1249,10 +1254,16 @@ function TasksPage({ token }: { token: string }) {
     if (!assignModal || selectedAssignIds.length === 0) return
     setAssigning(true)
     try {
-      await apiFetch(`${apiBase()}/tasks/${assignModal._id}/assign`, token, {
+      const res = await apiFetch(`${apiBase()}/tasks/${assignModal._id}/assign`, token, {
         method: 'POST', body: JSON.stringify({ userIds: selectedAssignIds }),
       })
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b?.message ?? 'Assign failed') }
+      const count = selectedAssignIds.length
+      const taskTitle = assignModal.title
       setAssignModal(null); setSelectedAssignIds([])
+      setAssignSuccess(`✓ "${taskTitle}" assigned to ${count} learner${count !== 1 ? 's' : ''} and they've been notified.`)
+      setTimeout(() => setAssignSuccess(''), 5000)
+      load()
     } catch { setError('Assign failed') } finally { setAssigning(false) }
   }
 
@@ -1283,6 +1294,10 @@ function TasksPage({ token }: { token: string }) {
       {error && (
         <div style={{ background: 'rgba(240,92,92,0.1)', border: `1px solid ${RED}`, borderRadius: 10,
           padding: '10px 14px', ...font(13, 400, RED) }}>{error}</div>
+      )}
+      {assignSuccess && (
+        <div style={{ background: 'rgba(95,201,102,0.1)', border: `1px solid ${GREEN}`, borderRadius: 10,
+          padding: '10px 14px', ...font(13, 400, '#2a8c30') }}>{assignSuccess}</div>
       )}
 
       <div style={card}>
@@ -2094,8 +2109,12 @@ function LogsPage({ token }: { token: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ══════════════════════════════════════════════════════════════════════════════
-function DashboardPage({ token }: { token: string }) {
-  const [stats, setStats] = useState({ users: 0, courses: 0, tasks: 0 })
+type ActivityPeriod = 'week' | 'month' | 'year'
+
+function DashboardPage({ token, onNavigate }: { token: string; onNavigate: (page: Page) => void }) {
+  const [stats, setStats]               = useState({ users: 0, courses: 0, tasks: 0 })
+  const [allLogs, setAllLogs]           = useState<any[]>([])
+  const [activityPeriod, setActivityPeriod] = useState<ActivityPeriod>('week')
 
   useEffect(() => {
     Promise.all([
@@ -2109,7 +2128,73 @@ function DashboardPage({ token }: { token: string }) {
         tasks:   t?.pagination?.total ?? (Array.isArray(t?.data) ? t.data.length : 0),
       })
     })
+    apiFetch(`${apiBase()}/activity-log?limit=500`, token)
+      .then(r => r.json())
+      .then(body => {
+        const logs: any[] = Array.isArray(body?.data) ? body.data : (body?.data?.items ?? [])
+        setAllLogs(logs)
+      })
+      .catch(() => {})
   }, [token])
+
+  // Compute chart bars + labels for the selected period
+  const { bars, labels, highlightIndex } = useMemo(() => {
+    const now = new Date()
+
+    if (activityPeriod === 'week') {
+      // Current week Mon–Sun
+      const counts = [0,0,0,0,0,0,0]
+      const todayDow = (now.getDay() + 6) % 7
+      const monOffset = todayDow
+      const weekMonday = new Date(now)
+      weekMonday.setDate(now.getDate() - monOffset)
+      weekMonday.setHours(0,0,0,0)
+      const weekSunday = new Date(weekMonday)
+      weekSunday.setDate(weekMonday.getDate() + 7)
+      allLogs.forEach(log => {
+        if (!log.createdAt) return
+        const d = new Date(log.createdAt)
+        if (d >= weekMonday && d < weekSunday) counts[(d.getDay() + 6) % 7]++
+      })
+      return { bars: counts, labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], highlightIndex: todayDow }
+    }
+
+    if (activityPeriod === 'month') {
+      // Last 4 weeks — each column = one week (oldest → newest)
+      const counts = [0,0,0,0]
+      const weekLabels = ['3w ago','2w ago','1w ago','This wk']
+      allLogs.forEach(log => {
+        if (!log.createdAt) return
+        const d = new Date(log.createdAt)
+        const diffMs = now.getTime() - d.getTime()
+        const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000))
+        if (diffWeeks >= 0 && diffWeeks < 4) counts[3 - diffWeeks]++
+      })
+      return { bars: counts, labels: weekLabels, highlightIndex: 3 }
+    }
+
+    // year — 12 months Jan–Dec of current year
+    const counts = Array(12).fill(0)
+    allLogs.forEach(log => {
+      if (!log.createdAt) return
+      const d = new Date(log.createdAt)
+      if (d.getFullYear() === now.getFullYear()) counts[d.getMonth()]++
+    })
+    return {
+      bars: counts,
+      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      highlightIndex: now.getMonth(),
+    }
+  }, [allLogs, activityPeriod])
+
+  const PERIOD_TABS: { id: ActivityPeriod; label: string }[] = [
+    { id: 'week',  label: 'Week'  },
+    { id: 'month', label: 'Month' },
+    { id: 'year',  label: 'Year'  },
+  ]
+
+  const BAR_MAX_PX = 80
+  const maxVal = Math.max(...bars, 1)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -2125,29 +2210,78 @@ function DashboardPage({ token }: { token: string }) {
       </div>
 
       <div style={{ display: 'flex', gap: 20 }}>
+        {/* Quick Actions */}
         <div style={{ ...card, flex: 1 }}>
           <div style={{ ...font(16, 700, NAVY), marginBottom: 12 }}>Quick Actions</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: '→ Manage Users',   color: NAVY },
-              { label: '→ Manage Courses', color: GREEN },
-              { label: '→ Manage Tasks',   color: INDIGO },
-              { label: '→ View Logs',      color: AMBER },
-            ].map(a => (
-              <div key={a.label} style={{ ...font(14, 500, a.color), cursor: 'default' }}>{a.label}</div>
+            {([
+              { label: '→ Manage Users',   color: NAVY,   page: 'users'   as Page },
+              { label: '→ Manage Courses', color: GREEN,  page: 'courses' as Page },
+              { label: '→ Manage Tasks',   color: INDIGO, page: 'tasks'   as Page },
+              { label: '→ View Logs',      color: AMBER,  page: 'logs'    as Page },
+            ] as { label: string; color: string; page: Page }[]).map(a => (
+              <div
+                key={a.label}
+                onClick={() => onNavigate(a.page)}
+                style={{ ...font(14, 500, a.color), cursor: 'pointer', userSelect: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >{a.label}</div>
             ))}
           </div>
         </div>
+
+        {/* Platform Activity */}
         <div style={{ ...card, flex: 2 }}>
-          <div style={{ ...font(16, 700, NAVY), marginBottom: 12 }}>Platform Activity</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
-            {[60, 90, 70, 100, 80, 50, 30].map((h, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: '100%', height: `${h}%`, background: i < 5 ? '#1c1c1c' : GREEN, borderRadius: '4px 4px 0 0' }} />
-                <div style={{ ...font(10, 400, MUTED) }}>{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]}</div>
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <div style={{ ...font(16, 700, NAVY) }}>Platform Activity</div>
+              <div style={{ ...font(11, 400, MUTED), marginTop: 2 }}>
+                {activityPeriod === 'week'  && 'Current week — log entries per day'}
+                {activityPeriod === 'month' && 'Last 4 weeks — log entries per week'}
+                {activityPeriod === 'year'  && `${new Date().getFullYear()} — log entries per month`}
               </div>
-            ))}
+            </div>
+            {/* Period toggle */}
+            <div style={{ display: 'flex', border: `1px solid ${BORDER.replace('1px solid ', '')}`, borderRadius: 8, overflow: 'hidden' }}>
+              {PERIOD_TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActivityPeriod(tab.id)}
+                  style={{
+                    padding: '5px 14px',
+                    border: 'none',
+                    borderRight: tab.id !== 'year' ? `1px solid rgba(28,28,28,0.1)` : 'none',
+                    cursor: 'pointer',
+                    background: activityPeriod === tab.id ? NAVY : '#fff',
+                    ...font(12, activityPeriod === tab.id ? 600 : 400, activityPeriod === tab.id ? '#fff' : MUTED),
+                    transition: 'background .15s',
+                  }}
+                >{tab.label}</button>
+              ))}
+            </div>
           </div>
+
+          {/* Chart */}
+          {bars.every(v => v === 0) ? (
+            <div style={{ height: BAR_MAX_PX + 20, display: 'flex', alignItems: 'center', justifyContent: 'center', ...font(13, 400, MUTED) }}>
+              No activity data for this period
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: bars.length > 8 ? 4 : 8, height: BAR_MAX_PX + 20 }}>
+              {bars.map((count, i) => {
+                const barPx = Math.max(Math.round((count / maxVal) * BAR_MAX_PX), count > 0 ? 4 : 0)
+                const isHighlight = i === highlightIndex
+                return (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }} title={`${labels[i]}: ${count} events`}>
+                    <div style={{ width: '100%', height: barPx, background: isHighlight ? GREEN : '#1c1c1c', borderRadius: '4px 4px 0 0', transition: 'height .3s ease' }} />
+                    <div style={{ ...font(bars.length > 8 ? 9 : 10, 400, isHighlight ? GREEN : MUTED), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{labels[i]}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2337,7 +2471,7 @@ export default function AdminPage() {
 
           {/* Page content */}
           <div style={{ padding: 28, flex: 1 }}>
-            {activePage === 'dashboard' && <DashboardPage token={token} />}
+            {activePage === 'dashboard' && <DashboardPage token={token} onNavigate={setActivePage} />}
             {activePage === 'users'     && <UsersPage     token={token} />}
             {activePage === 'courses'   && <CoursesPage   token={token} />}
             {activePage === 'tasks'     && <TasksPage     token={token} />}

@@ -300,6 +300,20 @@ function TimesheetPageInner() {
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
+  /* ── auto-complete activity after any submission ── */
+  const autoMarkCompleted = useCallback(async () => {
+    if (!token || !activityId) return
+    try {
+      const actResp = await apiFetch<any>(`/learning-activities/${activityId}`, token)
+      const status = actResp.data?.status
+      if (status === 'COMPLETED' || status === 'CANCELLED') return
+      await apiFetch<any>(`/learning-activities/${activityId}/status`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+    } catch { /* silent — status update is best-effort */ }
+  }, [token, activityId])
+
   /* ── create / update ── */
   const handleSave = async (form: EntryFormState) => {
     const body: any = {
@@ -352,6 +366,7 @@ function TimesheetPageInner() {
     }
     setEditingEntry(undefined)
     setPage(1)
+    await autoMarkCompleted()
   }
 
   /* ── delete ── */

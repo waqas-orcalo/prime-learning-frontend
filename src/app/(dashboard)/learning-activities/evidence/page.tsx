@@ -233,7 +233,7 @@ function Sidebar({ activeTab, onTabChange }: { activeTab: Tab; onTabChange: (t: 
 }
 
 /* ── Tab: Evidence ── */
-function TabEvidence({ data, onChange, activityId, token, onQuit }: { data: { content: string; attachments: Attachment[]; toolbarActive: string[], evidenceId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
+function TabEvidence({ data, onChange, activityId, token, onQuit, onAutoComplete }: { data: { content: string; attachments: Attachment[]; toolbarActive: string[], evidenceId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void; onAutoComplete?: () => void }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -268,6 +268,7 @@ function TabEvidence({ data, onChange, activityId, token, onQuit }: { data: { co
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onAutoComplete?.()
     } catch (err) {
       console.error('Failed to save evidence:', err)
     } finally {
@@ -326,7 +327,7 @@ function TabEvidence({ data, onChange, activityId, token, onQuit }: { data: { co
 }
 
 /* ── Tab: Feedback ── */
-function TabFeedback({ data, onChange, activityId, token, onQuit }: { data: { content: string; toolbarActive: string[]; feedbackId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
+function TabFeedback({ data, onChange, activityId, token, onQuit, onAutoComplete }: { data: { content: string; toolbarActive: string[]; feedbackId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void; onAutoComplete?: () => void }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -356,6 +357,7 @@ function TabFeedback({ data, onChange, activityId, token, onQuit }: { data: { co
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onAutoComplete?.()
     } catch (err) {
       console.error('Failed to save feedback:', err)
     } finally {
@@ -381,7 +383,7 @@ function TabFeedback({ data, onChange, activityId, token, onQuit }: { data: { co
 
 /* ── Tab: Visit ── */
 interface VisitData { visitType: string; travelTime: string; notes: string; visitId: string }
-function TabVisit({ data, onChange, activityId, token, onQuit }: { data: VisitData; onChange: (d: VisitData) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
+function TabVisit({ data, onChange, activityId, token, onQuit, onAutoComplete }: { data: VisitData; onChange: (d: VisitData) => void; activityId: string; token: string | undefined; onQuit?: () => void; onAutoComplete?: () => void }) {
   const [typeOpen, setTypeOpen] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -415,6 +417,7 @@ function TabVisit({ data, onChange, activityId, token, onQuit }: { data: VisitDa
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onAutoComplete?.()
     } catch (err) {
       console.error('Failed to save visit:', err)
     } finally {
@@ -477,7 +480,7 @@ function TabVisit({ data, onChange, activityId, token, onQuit }: { data: VisitDa
 
 /* ── Tab: Learning Journals ── */
 interface JournalData { title: string; category: string; date: string; timeHH: string; timeMM: string; amPm: 'AM' | 'PM'; durationHH: string; durationMM: string; offJob: boolean; onJob: boolean; reflection: string; privacy: string; journalId: string }
-function TabJournals({ data, onChange, activityId, token, onQuit }: { data: JournalData; onChange: (d: JournalData) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
+function TabJournals({ data, onChange, activityId, token, onQuit, onAutoComplete }: { data: JournalData; onChange: (d: JournalData) => void; activityId: string; token: string | undefined; onQuit?: () => void; onAutoComplete?: () => void }) {
   const [catOpen, setCatOpen] = useState(false)
   const [privOpen, setPrivOpen] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -521,6 +524,7 @@ function TabJournals({ data, onChange, activityId, token, onQuit }: { data: Jour
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onAutoComplete?.()
     } catch (err) {
       console.error('Failed to save journal:', err)
     } finally {
@@ -625,7 +629,7 @@ function TabJournals({ data, onChange, activityId, token, onQuit }: { data: Jour
 
 /* ── Tab: Declaration & Signatures ── */
 interface DeclarationData { learner: DeclarationSig; trainer: DeclarationSig; agreed: boolean }
-function TabDeclaration({ data, onChange, activityId, token, onQuit, learnerName }: { data: DeclarationData; onChange: (d: DeclarationData) => void; activityId: string; token: string | undefined; onQuit?: () => void; learnerName?: string }) {
+function TabDeclaration({ data, onChange, activityId, token, onQuit, learnerName, onAutoComplete }: { data: DeclarationData; onChange: (d: DeclarationData) => void; activityId: string; token: string | undefined; onQuit?: () => void; learnerName?: string; onAutoComplete?: () => void }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [signingRole, setSigningRole] = useState<'learner' | 'trainer' | null>(null)
@@ -672,6 +676,7 @@ function TabDeclaration({ data, onChange, activityId, token, onQuit, learnerName
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onAutoComplete?.()
     } catch (err) {
       console.error('Failed to save declaration:', err)
     } finally {
@@ -866,13 +871,26 @@ function EvidencePageInner() {
   const onQuit = () => router.push('/learning-activities')
   const learnerName = [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ')
 
+  // Auto-mark activity as COMPLETED after any successful submission
+  const autoMarkCompleted = useCallback(async () => {
+    if (!token || !activityId || activityId === 'default') return
+    if (activity?.status === 'COMPLETED' || activity?.status === 'CANCELLED') return
+    try {
+      await apiFetch<any>(`/learning-activities/${activityId}/status`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+      setActivity((prev: any) => prev ? { ...prev, status: 'COMPLETED' } : prev)
+    } catch { /* silent — status update is best-effort */ }
+  }, [token, activityId, activity])
+
   const renderTab = () => {
     switch (activeTab) {
-      case 'Evidence': return <TabEvidence data={evidenceData} onChange={setEvidenceData} activityId={activityId} token={token} onQuit={onQuit} />
-      case 'Feedback & Comments': return <TabFeedback data={feedbackData} onChange={setFeedbackData} activityId={activityId} token={token} onQuit={onQuit} />
-      case 'Visit': return <TabVisit data={visitData} onChange={setVisitData} activityId={activityId} token={token} onQuit={onQuit} />
-      case 'Learning Journals': return <TabJournals data={journalData} onChange={setJournalData} activityId={activityId} token={token} onQuit={onQuit} />
-      case 'Declaration & Signatures': return <TabDeclaration data={declarationData} onChange={setDeclarationData} activityId={activityId} token={token} onQuit={onQuit} learnerName={learnerName} />
+      case 'Evidence': return <TabEvidence data={evidenceData} onChange={setEvidenceData} activityId={activityId} token={token} onQuit={onQuit} onAutoComplete={autoMarkCompleted} />
+      case 'Feedback & Comments': return <TabFeedback data={feedbackData} onChange={setFeedbackData} activityId={activityId} token={token} onQuit={onQuit} onAutoComplete={autoMarkCompleted} />
+      case 'Visit': return <TabVisit data={visitData} onChange={setVisitData} activityId={activityId} token={token} onQuit={onQuit} onAutoComplete={autoMarkCompleted} />
+      case 'Learning Journals': return <TabJournals data={journalData} onChange={setJournalData} activityId={activityId} token={token} onQuit={onQuit} onAutoComplete={autoMarkCompleted} />
+      case 'Declaration & Signatures': return <TabDeclaration data={declarationData} onChange={setDeclarationData} activityId={activityId} token={token} onQuit={onQuit} learnerName={learnerName} onAutoComplete={autoMarkCompleted} />
     }
   }
 
