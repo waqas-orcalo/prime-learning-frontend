@@ -726,10 +726,53 @@ export default function Header({ onHamburgerClick }: { onHamburgerClick?: () => 
           {openDropdown === 'profile' && (
             <div style={{ position: 'absolute', top: '56px', right: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 8px 24px rgba(13,10,44,0.12)', border: '1px solid rgba(28,28,28,0.1)', width: '220px', zIndex: 200, overflow: 'hidden' }}>
 
-              {/* Set Status */}
+              {/* My Profile */}
+              <div
+                onClick={() => { setOpenDropdown(null); router.push('/profile') }}
+                style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(28,28,28,0.03)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="5.5" r="3" stroke="#1c1c1c" strokeWidth="1.4"/>
+                  <path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="#1c1c1c" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+                <span style={{ ...font(13, 400), lineHeight: '18px' }}>My Profile</span>
+              </div>
+
+              {/* My Account */}
+              <div
+                onClick={() => { setOpenDropdown(null); router.push('/my-account') }}
+                style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(28,28,28,0.03)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="2" y="2" width="12" height="12" rx="2.5" stroke="#1c1c1c" strokeWidth="1.4"/>
+                  <path d="M5 8h6M5 5.5h3M5 10.5h4" stroke="#1c1c1c" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                <span style={{ ...font(13, 400), lineHeight: '18px' }}>My Account</span>
+              </div>
+
+              {/* Activity Log */}
+              <div
+                onClick={() => { setOpenDropdown(null); router.push('/activity-log') }}
+                style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(28,28,28,0.03)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4h12M2 8h8M2 12h5" stroke="#1c1c1c" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+                <span style={{ ...font(13, 400), lineHeight: '18px' }}>Activity Log</span>
+              </div>
+
+              {/* Set a Status */}
               <div
                 onClick={() => { setOpenDropdown(null); setShowSetStatus(true) }}
                 style={{ padding: '10px 16px', borderBottom: '1px solid rgba(28,28,28,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(28,28,28,0.03)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: presence.showOnlineStatus ? currentDotColor : 'rgba(28,28,28,0.2)', display: 'inline-block' }} />
@@ -742,6 +785,8 @@ export default function Header({ onHamburgerClick }: { onHamburgerClick?: () => 
               <div
                 onClick={() => { setOpenDropdown(null); signOut({ callbackUrl: '/login' }) }}
                 style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,71,71,0.04)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round"/>
