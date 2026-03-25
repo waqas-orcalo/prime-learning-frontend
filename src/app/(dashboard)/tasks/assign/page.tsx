@@ -106,7 +106,7 @@ export default function AssignTaskPage() {
   // Step tracking
   const [step, setStep] = useState<1 | 2>(1)
 
-  // Step 1 — learner lookup
+  // Step 1 — user lookup (learner or trainer)
   const [emailInput, setEmailInput] = useState('james.miller@prime.com')
   const [searching, setSearching] = useState(false)
   const [learner, setLearner] = useState<LearnerResult | null>(null)
@@ -142,11 +142,11 @@ export default function AssignTaskPage() {
         token,
       )
       const u = res?.data
-      if (!u) throw new Error('Learner not found')
+      if (!u) throw new Error('User not found')
       setLearner(u)
       setStep(2)
     } catch (err: any) {
-      setLookupError(err?.message ?? 'Learner not found for that email')
+      setLookupError(err?.message ?? 'User not found for that email')
     } finally {
       setSearching(false)
     }
@@ -280,7 +280,7 @@ export default function AssignTaskPage() {
       {/* Progress steps */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px' }}>
         {[
-          { num: 1, label: 'Find Learner' },
+          { num: 1, label: 'Find User' },
           { num: 2, label: 'Task Details' },
         ].map((s, i) => (
           <div key={s.num} style={{ display: 'flex', alignItems: 'center' }}>
@@ -310,17 +310,17 @@ export default function AssignTaskPage() {
         ))}
       </div>
 
-      {/* ── Step 1: Find Learner ───────────────────────────────────────────── */}
+      {/* ── Step 1: Find User ─────────────────────────────────────────────── */}
       {step === 1 && (
         <div style={card}>
           <div style={cardHeader}>
-            <span style={font(16, 600, '#1c1c1c')}>Find Learner by Email</span>
+            <span style={font(16, 600, '#1c1c1c')}>Find User by Email</span>
           </div>
           <div style={cardBody}>
             <div style={{ ...font(13, 400, 'rgba(28,28,28,0.5)'), marginBottom: '24px' }}>
-              Enter the learner's email address to assign a task to them.
+              Enter the email address of the learner or trainer to assign a task to them.
             </div>
-            <label style={labelStyle}>Learner Email Address</label>
+            <label style={labelStyle}>Email Address</label>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               <input
                 type="email"
@@ -343,7 +343,7 @@ export default function AssignTaskPage() {
                   whiteSpace: 'nowrap', flexShrink: 0,
                 }}
               >
-                {searching ? 'Searching…' : 'Find Learner'}
+                {searching ? 'Searching…' : 'Find User'}
               </button>
             </div>
             {lookupError && (

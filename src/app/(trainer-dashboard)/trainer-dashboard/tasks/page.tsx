@@ -11,6 +11,14 @@ const TH: React.CSSProperties = { padding: '10px 14px', ...font(12, 500, '#555')
 const TD: React.CSSProperties = { padding: '12px 14px', ...font(12) as object, borderBottom: '1px solid rgba(28,28,28,0.06)', verticalAlign: 'middle' }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  // uppercase (backend enum values)
+  PENDING:     { bg: '#fef9c3', color: '#854d0e', label: 'Pending'     },
+  IN_PROGRESS: { bg: '#dbeafe', color: '#1e40af', label: 'In Progress' },
+  COMPLETED:   { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
+  SUBMITTED:   { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
+  APPROVED:    { bg: '#dcfce7', color: '#15803d', label: 'Approved'    },
+  REJECTED:    { bg: '#fee2e2', color: '#b91c1c', label: 'Rejected'    },
+  // lowercase fallbacks
   pending:     { bg: '#fef9c3', color: '#854d0e', label: 'Pending'     },
   in_progress: { bg: '#dbeafe', color: '#1e40af', label: 'In Progress' },
   complete:    { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
@@ -20,7 +28,7 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLES[status] ?? { bg: '#f3f4f6', color: '#374151', label: status }
+  const s = STATUS_STYLES[status] ?? STATUS_STYLES[(status ?? '').toUpperCase()] ?? { bg: '#f3f4f6', color: '#374151', label: status }
   return (
     <span style={{
       padding: '4px 10px', borderRadius: 4,
@@ -204,7 +212,7 @@ function TasksInner() {
   const [cohortFilter, setCohortFilter] = useState('')
   const [learnerFilter, setLearnerFilter] = useState('')
   const [periodFilter, setPeriodFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('pending')
+  const [statusFilter, setStatusFilter] = useState('')
   const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set())
   const [reassignModal, setReassignModal] = useState<{ isOpen: boolean; task: Task | null }>({ isOpen: false, task: null })
 
@@ -238,15 +246,6 @@ function TasksInner() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', ...FF }}>
-      <style>{`
-        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-        @media(max-width:768px){
-          .tasks-filter-bar { flex-direction: column !important; align-items: flex-start !important; }
-          .tasks-filter-bar > div { width: 100%; }
-          .tasks-filter-bar select { width: 100%; }
-        }
-      `}</style>
-
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={font(28, 700)}>Tasks</h1>
@@ -325,11 +324,11 @@ function TasksInner() {
             }}
           >
             <option value="">All Statuses</option>
-            <option value="pending">Pending task</option>
-            <option value="in_progress">In Progress</option>
-            <option value="complete">Complete</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
+            <option value="PENDING">Pending task</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Complete</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
           </select>
         </div>
       </div>
@@ -421,8 +420,9 @@ function TasksInner() {
                             <button
                               onClick={() => handleHideTask(taskId)}
                               style={{
-                                padding: '6px 12px', background: 'transparent', border: '1px solid rgba(28,28,28,0.2)',
-                                color: '#1c1c1c', borderRadius: 4, cursor: 'pointer', ...font(11, 500), transition: 'all 0.2s'
+                                padding: '6px 12px', background: 'transparent', color: '#666',
+                                border: '1px solid rgba(28,28,28,0.15)', borderRadius: 4,
+                                cursor: 'pointer', ...font(11, 500, '#666'), transition: 'all 0.2s'
                               }}
                             >
                               Hide
@@ -431,17 +431,10 @@ function TasksInner() {
                         </td>
                       </tr>
                     )
-                  })
-              }
+                  })}
             </tbody>
           </table>
         </div>
-
-        {data?.pagination && data.pagination.total > 0 && (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(28,28,28,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
-            <span style={font(11, 400, '#888')}>Showing {tasks.length} of {data.pagination.total} tasks</span>
-          </div>
-        )}
       </div>
 
       {/* Reassign Modal */}
@@ -455,5 +448,9 @@ function TasksInner() {
 }
 
 export default function TasksPage() {
-  return <Suspense><TasksInner /></Suspense>
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>Loading tasks…</div>}>
+      <TasksInner />
+    </Suspense>
+  )
 }

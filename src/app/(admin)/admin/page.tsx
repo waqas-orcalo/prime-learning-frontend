@@ -1317,15 +1317,15 @@ function TasksPage({ token }: { token: string }) {
 
   useEffect(() => { load() }, [load])
 
-  // Load LEARNER users for assign modal
+  // Load LEARNER + TRAINER users for assign modal
   useEffect(() => {
     if (!assignModal) return
-    apiFetch(`${apiBase()}/users?limit=100&role=LEARNER`, token)
+    apiFetch(`${apiBase()}/users?limit=200`, token)
       .then(r => r.json())
       .then(b => {
         const all: UserRecord[] = Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])
-        // Extra client-side filter in case backend doesn't support role query param
-        setAssignUsers(all.filter(u => (u as any).role === 'LEARNER'))
+        // Only show learners and trainers (exclude org admins / super admins)
+        setAssignUsers(all.filter(u => (u as any).role === 'LEARNER' || (u as any).role === 'TRAINER'))
       })
       .catch(() => {})
   }, [assignModal, token])
@@ -1393,7 +1393,7 @@ function TasksPage({ token }: { token: string }) {
       const count = selectedAssignIds.length
       const taskTitle = assignModal.title
       setAssignModal(null); setSelectedAssignIds([])
-      setAssignSuccess(`✓ "${taskTitle}" assigned to ${count} learner${count !== 1 ? 's' : ''} and they've been notified.`)
+      setAssignSuccess(`✓ "${taskTitle}" assigned to ${count} user${count !== 1 ? 's' : ''} and they've been notified.`)
       setTimeout(() => setAssignSuccess(''), 5000)
       load()
     } catch { setError('Assign failed') } finally { setAssigning(false) }
@@ -1416,7 +1416,7 @@ function TasksPage({ token }: { token: string }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ ...font(22, 700, NAVY) }}>Task Management</div>
-          <div style={{ ...font(13, 400, MUTED), marginTop: 2 }}>Monitor and manage all learner tasks</div>
+          <div style={{ ...font(13, 400, MUTED), marginTop: 2 }}>Monitor and manage all tasks</div>
         </div>
         <button style={btn(true)} onClick={openCreate}>
           <span style={{ color: '#fff' }}>{icons.plus}</span> Create Task
@@ -1622,7 +1622,7 @@ function TasksPage({ token }: { token: string }) {
       {assignModal && (
         <Modal title={`Assign: "${assignModal.title}"`} onClose={() => setAssignModal(null)}>
           <div style={{ marginBottom: 8, ...font(13, 400, MUTED) }}>
-            Select learners to assign this task to. A copy of this task will be created for each learner.
+            Select learners or trainers to assign this task to. A copy of this task will be created for each user.
           </div>
           <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
             {assignUsers.map(u => {
@@ -1642,13 +1642,13 @@ function TasksPage({ token }: { token: string }) {
               )
             })}
             {assignUsers.length === 0 && (
-              <div style={{ ...font(13, 400, MUTED), padding: '16px 0', textAlign: 'center' }}>No learners found</div>
+              <div style={{ ...font(13, 400, MUTED), padding: '16px 0', textAlign: 'center' }}>No users found</div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button style={btn()} onClick={() => setAssignModal(null)}>Cancel</button>
             <button style={btn(true)} onClick={handleAssign} disabled={assigning || selectedAssignIds.length === 0}>
-              {assigning ? 'Assigning…' : `Assign to ${selectedAssignIds.length} Learner${selectedAssignIds.length !== 1 ? 's' : ''}`}
+              {assigning ? 'Assigning…' : `Assign to ${selectedAssignIds.length} User${selectedAssignIds.length !== 1 ? 's' : ''}`}
             </button>
           </div>
         </Modal>
@@ -2494,126 +2494,86 @@ export default function AdminPage() {
   const token       = ((session?.user as any)?.accessToken as string) ?? ''
   const adminName   = `${(session?.user as any)?.firstName ?? 'Super'} ${(session?.user as any)?.lastName ?? 'Admin'}`
   const adminEmail  = session?.user?.email ?? 'admin@prime.com'
-  const adminInitials = adminName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-
-  const PAGE_TITLES: Record<Page, string> = {
-    dashboard: 'Dashboard', users: 'User Management', courses: 'Course Management',
-    tasks: 'Task Management', assign: 'Assign Tasks', groups: 'Group Management',
-    logs: 'Activity Logs', settings: 'Settings',
-  }
+  const adminInitials = adminName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
   const NAV: { id: Page; label: string }[] = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'users',     label: 'Users' },
-    { id: 'courses',   label: 'Courses' },
-    { id: 'tasks',     label: 'Tasks' },
-    { id: 'assign',    label: 'Assign Tasks' },
-    { id: 'groups',    label: 'Groups' },
-    { id: 'logs',      label: 'Activity Logs' },
-    { id: 'settings',  label: 'Settings' },
+    { id: 'dashboard', label: 'Dashboard'   },
+    { id: 'users',     label: 'Users'       },
+    { id: 'courses',   label: 'Courses'     },
+    { id: 'tasks',     label: 'Tasks'       },
+    { id: 'assign',    label: 'Assign Tasks'},
+    { id: 'groups',    label: 'Groups'      },
+    { id: 'logs',      label: 'Audit Logs'  },
+    { id: 'settings',  label: 'Settings'   },
   ]
 
   return (
-    <>
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${BG}; }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: rgba(28,28,28,.15); border-radius: 99px; }
-        select, input { cursor: text; }
-        select { cursor: pointer; }
-        button:disabled { opacity: 0.55; cursor: not-allowed; }
-      `}</style>
+    <div style={{ display: 'flex', height: '100vh', background: BG, fontFamily: FF, overflow: 'hidden' }}>
 
-      <div style={{ display: 'flex', minHeight: '100vh', background: BG }}>
-
-        {/* SIDEBAR */}
-        <aside style={{ width: 220, minHeight: '100vh', background: '#fff', borderRight: BORDER,
-          display: 'flex', flexDirection: 'column', padding: 16,
-          position: 'fixed', top: 0, left: 0, bottom: 0, overflowY: 'auto', zIndex: 10 }}>
-
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', marginBottom: 4 }}>
-            <div style={{ width: 36, height: 36, background: '#1c1c1c', borderRadius: 10,
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M4 14L10 5l6 9H4Z" fill="#fff" opacity=".9"/>
-                <circle cx="10" cy="10" r="2" fill="#fff"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ ...font(13, 700, NAVY) }}>Prime Learning</div>
-              <div style={{ ...font(11, 400, MUTED) }}>Admin Panel</div>
-            </div>
+      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      <aside style={{
+        width: 220, flexShrink: 0, background: '#fff', borderRight: BORDER,
+        display: 'flex', flexDirection: 'column', padding: '20px 12px', overflowY: 'auto',
+      }}>
+        {/* Logo / brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28, paddingLeft: 4 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, background: '#1c1c1c',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ ...font(14, 700, '#fff') }}>P</span>
           </div>
+          <span style={{ ...font(15, 700, NAVY) }}>Prime Admin</span>
+        </div>
 
-          {/* Nav sections */}
-          <div style={{ ...font(11, 400, 'rgba(28,28,28,0.40)'), padding: '4px 12px',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 4 }}>Overview</div>
-          <NavItem id="dashboard" active={activePage === 'dashboard'} onClick={setActivePage}
-            icon={icons.dashboard} label="Dashboard" />
-
-          <div style={{ ...font(11, 400, 'rgba(28,28,28,0.40)'), padding: '4px 12px',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 8 }}>Manage</div>
-          {(['users','courses','tasks','assign','groups'] as Page[]).map(id => (
-            <NavItem key={id} id={id} active={activePage === id} onClick={setActivePage}
-              icon={icons[id]} label={NAV.find(n => n.id === id)?.label ?? id} />
+        {/* Nav items */}
+        <nav style={{ flex: 1 }}>
+          {NAV.map(({ id, label }) => (
+            <NavItem
+              key={id}
+              id={id}
+              label={label}
+              icon={icons[id]}
+              active={activePage === id}
+              onClick={setActivePage}
+            />
           ))}
+        </nav>
 
-          <div style={{ ...font(11, 400, 'rgba(28,28,28,0.40)'), padding: '4px 12px',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 8 }}>System</div>
-          <NavItem id="logs" active={activePage === 'logs'} onClick={setActivePage}
-            icon={icons.logs} label="Activity Logs" />
-          <NavItem id="settings" active={activePage === 'settings'} onClick={setActivePage}
-            icon={icons.settings} label="Settings" />
-
-          {/* Footer */}
-          <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: BORDER }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 12 }}>
-              <Avatar initials={adminInitials} size={32} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ ...font(13, 600, NAVY), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{adminName}</div>
-                <div style={{ ...font(11, 400, MUTED), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{adminEmail}</div>
+        {/* Admin profile + sign out */}
+        <div style={{ borderTop: BORDER, paddingTop: 12, marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <Avatar initials={adminInitials || 'A'} size={32} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ ...font(13, 600, NAVY), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {adminName}
+              </div>
+              <div style={{ ...font(11, 400, MUTED), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {adminEmail}
               </div>
             </div>
-            <button onClick={() => signOut({ callbackUrl: '/login' })}
-              style={{ ...btn(), width: '100%', justifyContent: 'center', marginTop: 4, color: RED, borderColor: 'transparent' }}>
-              {icons.logout} Sign out
-            </button>
           </div>
-        </aside>
-
-        {/* MAIN CONTENT */}
-        <div style={{ marginLeft: 220, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-
-          {/* Topbar */}
-          <div style={{ height: 64, background: '#fff', borderBottom: BORDER, padding: '0 28px',
-            display: 'flex', alignItems: 'center', gap: 16,
-            position: 'sticky', top: 0, zIndex: 5 }}>
-            <span style={{ ...font(18, 700, NAVY), flex: 1 }}>{PAGE_TITLES[activePage]}</span>
-            <div style={{ width: 38, height: 38, borderRadius: 10, border: BORDER, background: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              position: 'relative' as const, color: '#1c1c1c' }}>
-              {icons.bell}
-              <div style={{ position: 'absolute' as const, top: 8, right: 8, width: 7, height: 7,
-                background: RED, borderRadius: '50%', border: '1.5px solid #fff' }} />
-            </div>
-            <Avatar initials={adminInitials} size={36} />
-          </div>
-
-          {/* Page content */}
-          <div style={{ padding: 28, flex: 1 }}>
-            {activePage === 'dashboard' && <DashboardPage token={token} onNavigate={setActivePage} />}
-            {activePage === 'users'     && <UsersPage     token={token} />}
-            {activePage === 'courses'   && <CoursesPage   token={token} />}
-            {activePage === 'tasks'     && <TasksPage     token={token} />}
-            {activePage === 'assign'    && <AssignPage    token={token} />}
-            {activePage === 'groups'    && <GroupsPage    token={token} />}
-            {activePage === 'logs'      && <LogsPage      token={token} />}
-            {activePage === 'settings'  && <SettingsPage />}
-          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            style={{ ...btn(), width: '100%', justifyContent: 'center', color: RED }}
+          >
+            <span style={{ display: 'flex', color: RED }}>{icons.logout}</span>
+            Sign Out
+          </button>
         </div>
-      </div>
-    </>
+      </aside>
+
+      {/* ── Main content ───────────────────────────────────────────────────── */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+        {activePage === 'dashboard' && <DashboardPage token={token} onNavigate={setActivePage} />}
+        {activePage === 'users'     && <UsersPage     token={token} />}
+        {activePage === 'courses'   && <CoursesPage   token={token} />}
+        {activePage === 'tasks'     && <TasksPage     token={token} />}
+        {activePage === 'assign'    && <AssignPage    token={token} />}
+        {activePage === 'groups'    && <GroupsPage    token={token} />}
+        {activePage === 'logs'      && <LogsPage      token={token} />}
+        {activePage === 'settings'  && <SettingsPage />}
+      </main>
+    </div>
   )
 }
