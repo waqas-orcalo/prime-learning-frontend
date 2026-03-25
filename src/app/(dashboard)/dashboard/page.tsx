@@ -298,14 +298,6 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: '16px', padding: '8px', width: '190px', flexShrink: 0, marginLeft: '12px' }}>
-            <img src={iconTrainerAvatar} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '80px' }} />
-            <div>
-              <div style={{ ...font(14, 700, '#1c1c1c'), lineHeight: '20px' }}>{trainerName}</div>
-              <div style={{ ...font(14, 400, 'rgba(28,28,28,0.6)'), lineHeight: '20px' }}>{trainerRole}</div>
-              <div style={{ ...font(14, 400, trainerPresence === 'Online' ? '#5FC966' : '#F8B637'), lineHeight: '20px' }}>{trainerPresence}</div>
-            </div>
-          </div>
         </div>
       </div>
 
