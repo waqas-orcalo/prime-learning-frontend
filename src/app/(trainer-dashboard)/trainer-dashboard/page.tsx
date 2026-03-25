@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTrainerLearners, useTrainerDashboardStats, useTrainerRecentActivity } from '@/hooks/use-trainer'
+import { useSession } from 'next-auth/react'
+import { useTrainerLearners } from '@/hooks/use-trainer'
+import { apiFetch } from '@/lib/api-client'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const FF  = "'Inter', sans-serif"
@@ -387,86 +389,565 @@ function LearnersActivitySection() {
   )
 }
 
-// ── Trainer's Dashboard accordion content ─────────────────────────────────────
-function TrainerDashboardContent() {
-  const { data: statsRes, isLoading } = useTrainerDashboardStats()
-  const stats = statsRes?.data
+// ── Dashboard Stats types ──────────────────────────────────────────────────────
+interface DashboardStats {
+  learners:   { total: number }
+  tasks:      { total: number; pending: number; inProgress: number; completed: number; completionRate: number }
+  activities: { total: number }
+  messages:   { unread: number }
+  courses:    { total: number }
+}
 
-  const totalLearners = stats?.learners?.total ?? 0
-  const totalTasks    = stats?.tasks?.total ?? 0
-  const pendingTasks  = stats?.tasks?.pending ?? 0
-  const completedTasks = stats?.tasks?.completed ?? 0
-  const completionRate = stats?.tasks?.completionRate ?? 0
-  const totalActivities = stats?.activities?.total ?? 0
-  const unreadMessages  = stats?.messages?.unread ?? 0
+// ── Dashboard Charts types ─────────────────────────────────────────────────────
+interface DashboardCharts {
+  completedVisits:     { aboveNinety: number; eightyToNinety: number; belowEighty: number; total: number; percent: number }
+  plannedVisits:       { aboveNinety: number; eightyToNinety: number; belowEighty: number; total: number; percent: number }
+  iqaActions:          { count: number }
+  learnersDue90:       { _id: string; firstName: string; lastName: string; daysRemaining: number }[]
+  learnersLoggedIn:    { within7Days: number; eightTo30Days: number; over30Days: number }
+  learnersOnTarget:    { behind: number; onTarget: number; ahead: number }
+  learnersOnTargetOTJ: { behind: number; onTarget: number; ahead: number }
+  noOTJActivity:       { over4Weeks: number; threeToFour: number; twoToThree: number; oneToTwo: number; learningBreak: number }
+  progressReviewDue:   { overdue: number; within7Days: number; sevenTo14Days: number; fourteenTo28Days: number }
+  tasksDue:            { immediately: number; thisWeek: number; nextWeek: number; inTwoWeeks: number }
+}
 
-  // Derive chart-safe percentages
-  const pctCompleted = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-  const pctPending   = totalTasks > 0 ? Math.round((pendingTasks / totalTasks) * 100) : 0
-  const pctOther     = Math.max(0, 100 - pctCompleted - pctPending)
+// ── Figma chart colours ────────────────────────────────────────────────────────
+const CG = '#4CAF50'  // green
+const CO = '#FF9800'  // orange
+const CR = '#F44336'  // red
+const CB = '#2196F3'  // blue
+const CA = '#FFC107'  // amber
+const CT = '#009688'  // teal
+const CP = '#9C27B0'  // purple
+
+// ── Stat card header ───────────────────────────────────────────────────────────
+function StatCardHeader({ type = 'Statistics', title }: { type?: string; title: string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 10 }}>
+        <div style={f(10, 400, '#9291A5')}>{type}</div>
+        <div style={f(15, 700, '#1E1B39')}>{title}</div>
+      </div>
+      <div style={{ height: 1, background: '#E8E8ED', margin: '0 -16px 14px' }} />
+    </>
+  )
+}
+
+// ── Legend dot item ────────────────────────────────────────────────────────────
+function Dot({ color, label, value }: { color: string; label: string; value: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={f(11, 400, '#1c1c1c')}>{label}:</span>
+      <span style={f(11, 700, '#1c1c1c')}>{value}</span>
+    </div>
+  )
+}
+
+// ── Ring / donut chart ─────────────────────────────────────────────────────────
+function RingChart({ percent }: { percent: number }) {
+  const size = 170, r = 60, cx = size / 2, cy = size / 2
+  const circ = 2 * Math.PI * r
+  const good = Math.min(Math.max(percent, 0), 100)
+  const goodDash = (good / 100) * circ
+  const badDash  = ((100 - good) / 100) * circ
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#FCE4E4" strokeWidth={16} />
+        {good > 0 && (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={CG} strokeWidth={16}
+            strokeDasharray={`${goodDash} ${circ - goodDash}`} strokeLinecap="round" />
+        )}
+        {good < 100 && (
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={CR} strokeWidth={16}
+            strokeDasharray={`${badDash} ${circ - badDash}`}
+            strokeDashoffset={-goodDash} strokeLinecap="round" />
+        )}
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+        <span style={f(11, 400, '#9291A5')}>Total Progress</span>
+        <span style={f(22, 700, '#1E1B39')}>{percent}%</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Filled pie chart ───────────────────────────────────────────────────────────
+function FigmaPie({ slices, size = 170 }: { slices: { value: number; color: string }[]; size?: number }) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 6
+  const total = slices.reduce((s, x) => s + x.value, 0) || 1
+  const toRad = (d: number) => (d * Math.PI) / 180
+  let cum = 0
+  const paths = slices.map((s, i) => {
+    if (s.value === 0) return null
+    const startDeg = (cum / total) * 360 - 90
+    cum += s.value
+    const endDeg = (cum / total) * 360 - 90
+    const large = s.value / total > 0.5 ? 1 : 0
+    const x1 = cx + r * Math.cos(toRad(startDeg)), y1 = cy + r * Math.sin(toRad(startDeg))
+    const x2 = cx + r * Math.cos(toRad(endDeg)),   y2 = cy + r * Math.sin(toRad(endDeg))
+    return <path key={i} d={`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}Z`} fill={s.color} />
+  })
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+      {total === 0 ? <circle cx={cx} cy={cy} r={r} fill="#E8E8ED" /> : paths}
+    </svg>
+  )
+}
+
+// ── Horizontal bar chart ───────────────────────────────────────────────────────
+function HBar({ rows, maxVal }: { rows: { label: string; value: number; color: string }[]; maxVal?: number }) {
+  const max = maxVal ?? Math.max(...rows.map(r => r.value), 1)
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ ...f(11, 400, '#1c1c1c'), width: 82, flexShrink: 0, textAlign: 'right' }}>{row.label}</span>
+          <div style={{ flex: 1, height: 12, background: '#F0F0F5', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(row.value / max) * 100}%`, background: row.color, borderRadius: 6, transition: 'width 0.4s ease' }} />
+          </div>
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 90 }}>
+        {Array.from({ length: 5 }, (_, i) => Math.round((max / 4) * i)).map((v, i) => (
+          <span key={i} style={f(10, 400, '#9291A5')}>{v}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Navigable calendar ─────────────────────────────────────────────────────────
+function NavCalendar() {
+  const [offset, setOffset] = useState(0)
+  const now   = new Date()
+  const base  = new Date(now.getFullYear(), now.getMonth() + offset)
+  const year  = base.getFullYear()
+  const month = base.getMonth()
+  const today = offset === 0 ? now.getDate() : -1
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const DAYS   = ['Mo','Tu','We','Th','Fr','Sa','Su']
+  const first  = new Date(year, month, 1)
+  const startDow = (first.getDay() + 6) % 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (number | null)[] = Array(startDow).fill(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  while (cells.length % 7) cells.push(null)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {isLoading && <p style={f(12, 400, '#888')}>Loading dashboard stats...</p>}
+    <div style={{ border: '1px solid #E8E8ED', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
+      <div style={{ marginBottom: 6 }}>
+        <div style={f(10, 400, '#9291A5')}>Calendar</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={f(18, 700, '#1E1B39')}>{MONTHS[month]} {year}</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[
+            { dir: -1, path: 'M6 1L1 5l5 4' },
+            { dir:  1, path: 'M1 1l5 4-5 4' },
+          ].map(({ dir, path }) => (
+            <button key={dir} onClick={() => setOffset(o => o + dir)}
+              style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid #E8E8ED', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="7" height="10" viewBox="0 0 7 10"><path d={path} stroke="#1E1B39" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ height: 1, background: '#E8E8ED', margin: '0 -16px 10px' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '1px' }}>
+        {DAYS.map(d => <div key={d} style={{ ...f(10, 600, '#9291A5'), textAlign: 'center', paddingBottom: 4 }}>{d}</div>)}
+        {cells.map((d, i) => {
+          const isToday = d === today
+          return (
+            <div key={i} style={{ textAlign: 'center', padding: '4px 2px', borderRadius: 6, background: isToday ? '#1E1B39' : 'transparent' }}>
+              <span style={f(11, isToday ? 700 : 400, isToday ? '#fff' : d ? '#1c1c1c' : 'transparent')}>
+                {d ?? ''}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
-      {/* Summary stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        {[
-          { label: 'Total Learners', value: totalLearners, color: '#3b5bdb' },
-          { label: 'Total Tasks',    value: totalTasks,    color: '#7B61FF' },
-          { label: 'Activities',     value: totalActivities, color: '#2f9e44' },
-          { label: 'Unread Messages',value: unreadMessages, color: '#e67700' },
-        ].map(c => (
-          <div key={c.label} style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
-            <div style={f(11, 500, '#888')}>{c.label}</div>
-            <div style={{ ...f(24, 700, c.color), marginTop: 4 }}>{isLoading ? '–' : c.value}</div>
+// ── Trainer's Dashboard accordion content ─────────────────────────────────────
+function TrainerDashboardContent() {
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+  const [charts, setCharts] = useState<DashboardCharts | null>(null)
+  const [stats,  setStats]  = useState<DashboardStats  | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    if (!token) return
+    try {
+      setLoading(true); setError('')
+      const [chartsRes, statsRes] = await Promise.all([
+        apiFetch<{ data: DashboardCharts }>('/trainer/dashboard/charts', token),
+        apiFetch<{ data: DashboardStats  }>('/trainer/dashboard/stats',  token),
+      ])
+      setCharts(chartsRes.data)
+      setStats(statsRes.data)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load dashboard')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => { if (token) load() }, [load, token])
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+      <div style={{ width: 28, height: 28, border: '3px solid #E8E8ED', borderTopColor: '#1E1B39', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  if (error) return (
+    <div style={{ padding: '12px 16px', background: 'rgba(244,67,54,0.08)', borderRadius: 8, ...f(13, 400, CR) }}>{error}</div>
+  )
+
+  if (!charts || !stats) return null
+
+  const c = charts
+  const s = stats
+  const CARD: React.CSSProperties = { border: '1px solid #E8E8ED', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column' }
+  const GRID3: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }
+  const GRID2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }
+
+  // ── Summary stat widget configs ──────────────────────────────────────────────
+  const statWidgets = [
+    {
+      label: 'My Learners',
+      value: s.learners.total,
+      sub: 'total assigned',
+      accent: '#3b5bdb',
+      bg: '#EEF2FF',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b5bdb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Total Tasks',
+      value: s.tasks.total,
+      sub: 'across all learners',
+      accent: '#6741d9',
+      bg: '#F3F0FF',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6741d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 4h2a2 2 0 0 1 2 2v1h6V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+          <path d="m9 14 2 2 4-4"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Completed',
+      value: s.tasks.completed,
+      sub: `${s.tasks.completionRate}% completion rate`,
+      accent: '#2f9e44',
+      bg: '#EBFBEE',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2f9e44" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'In Progress',
+      value: s.tasks.inProgress,
+      sub: 'tasks active',
+      accent: '#e67700',
+      bg: '#FFF9DB',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e67700" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Pending Tasks',
+      value: s.tasks.pending,
+      sub: 'awaiting action',
+      accent: '#c92a2a',
+      bg: '#FFF5F5',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c92a2a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Activities',
+      value: s.activities.total,
+      sub: 'learning activities',
+      accent: '#0c8599',
+      bg: '#E3FAFC',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0c8599" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Unread Messages',
+      value: s.messages.unread,
+      sub: 'in your inbox',
+      accent: '#9c36b5',
+      bg: '#F8F0FC',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9c36b5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'My Courses',
+      value: s.courses?.total ?? 0,
+      sub: 'courses assigned',
+      accent: '#1971c2',
+      bg: '#E7F5FF',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1971c2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      ),
+    },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* ── Summary stat widgets ──────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 12, marginBottom: 18 }}>
+        {statWidgets.map((w) => (
+          <div key={w.label} style={{
+            background: w.bg, borderRadius: 12, padding: '14px 14px 12px',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            border: `1px solid ${w.accent}22`,
+          }}>
+            {/* icon row */}
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 1px 4px ${w.accent}33` }}>
+              {w.icon}
+            </div>
+            {/* value */}
+            <div style={{ ...f(26, 700, w.accent), lineHeight: 1 }}>{w.value}</div>
+            {/* label */}
+            <div style={{ ...f(12, 600, '#1E1B39'), lineHeight: 1.3 }}>{w.label}</div>
+            {/* sub */}
+            <div style={{ ...f(10, 400, '#9291A5'), lineHeight: 1.3 }}>{w.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Row 1: Calendar + Task completion donut + Completion rate donut */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flexShrink: 0 }}><CalendarCard /></div>
-        <DonutCard
-          title="Task Completion"
-          percent={completionRate}
-          color="#7B61FF"
-          legend={[
-            { label: 'Completed', color: '#43A047', value: String(completedTasks) },
-            { label: 'Pending',   color: '#f59e0b', value: String(pendingTasks) },
-            { label: 'Other',     color: '#ef4444', value: String(totalTasks - completedTasks - pendingTasks) },
-          ]}
-        />
-        <DonutCard
-          title="Overall Completion Rate"
-          percent={completionRate}
-          color="#43A047"
-          legend={[
-            { label: 'Completed %', color: '#43A047', value: `${pctCompleted}%` },
-            { label: 'Pending %',   color: '#f59e0b', value: `${pctPending}%` },
-            { label: 'Other %',     color: '#ef4444', value: `${pctOther}%` },
-          ]}
-        />
+      {/* ── Row 1: Calendar · Completed Visits · Planned Visits ─────────────── */}
+      <div style={GRID3}>
+
+        <NavCalendar />
+
+        {/* Completed visits last 30 days */}
+        <div style={CARD}>
+          <StatCardHeader title="Completed visit in last 30 Days" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <RingChart percent={c.completedVisits.percent} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CG} label="90% or above"  value={c.completedVisits.aboveNinety} />
+              <Dot color={CR} label="Less than 80%" value={c.completedVisits.belowEighty} />
+              <Dot color={CO} label="80%–90%"       value={c.completedVisits.eightyToNinety} />
+            </div>
+          </div>
+        </div>
+
+        {/* Planned visits next 30 days */}
+        <div style={CARD}>
+          <StatCardHeader title="Planned visit in next 30 Days" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <RingChart percent={c.plannedVisits.percent} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CG} label="90% or above"  value={c.plannedVisits.aboveNinety} />
+              <Dot color={CR} label="Less than 80%" value={c.plannedVisits.belowEighty} />
+              <Dot color={CO} label="80%–90%"       value={c.plannedVisits.eightyToNinety} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Row 2: Pie charts with real proportions */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <PieCard
-          title="Task Distribution"
-          slices={[
-            { label: 'Completed', pct: pctCompleted || 1, color: '#43A047', value: completedTasks },
-            { label: 'Pending',   pct: pctPending || 1,   color: '#f59e0b', value: pendingTasks },
-            { label: 'In Progress', pct: pctOther || 1,   color: '#3b82f6', value: totalTasks - completedTasks - pendingTasks },
-          ]}
-        />
-        <BarChartCard />
-        <DueTableCard />
+      {/* ── Row 2: IQA Action · Learners Due · Last Logged In ───────────────── */}
+      <div style={GRID3}>
+
+        {/* IQA Action */}
+        <div style={CARD}>
+          <StatCardHeader title="IQA Action" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 20 }}>
+            <HBar rows={[{ label: 'IQA Action', value: c.iqaActions.count, color: CG }]} maxVal={Math.max(c.iqaActions.count, 4)} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 9, height: 9, borderRadius: '50%', background: CG }} />
+              <span style={f(12, 400, '#1c1c1c')}>IQA action required: <strong>{c.iqaActions.count}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Learners due to complete next 90 days */}
+        <div style={CARD}>
+          <StatCardHeader type="Data" title="Learners Due to Complete next 90 days" />
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {c.learnersDue90.length === 0 ? (
+              <div style={{ ...f(12, 400, '#9291A5'), textAlign: 'center', padding: '20px 0' }}>No learners due in 90 days</div>
+            ) : (
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...f(12, 600, '#1c1c1c'), textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #E8E8ED' }}>Name</th>
+                      <th style={{ ...f(12, 600, '#1c1c1c'), textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #E8E8ED' }}>Days Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c.learnersDue90.map((l, i) => (
+                      <tr key={i}>
+                        <td style={{ ...f(12, 400, '#1c1c1c'), padding: '8px 8px', borderBottom: '1px solid #F5F5FA' }}>{l.firstName} {l.lastName}</td>
+                        <td style={{ ...f(12, 600, l.daysRemaining < 0 ? CR : '#1c1c1c'), textAlign: 'right', padding: '8px 8px', borderBottom: '1px solid #F5F5FA' }}>
+                          {l.daysRemaining} Days
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ ...f(10, 400, '#9291A5'), marginTop: 8, lineHeight: 1.5 }}>
+                  Student with negative days count are overdue to complete the task and with positive days count are on track
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Learners last logged in */}
+        <div style={CARD}>
+          <StatCardHeader title="Learners Last Logged In" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <FigmaPie size={170} slices={[
+              { value: c.learnersLoggedIn.over30Days,    color: CR     },
+              { value: c.learnersLoggedIn.eightTo30Days, color: CO     },
+              { value: c.learnersLoggedIn.within7Days,   color: CG     },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CR} label="Over 30 days"       value={c.learnersLoggedIn.over30Days} />
+              <Dot color={CO} label="8 – 30 days"        value={c.learnersLoggedIn.eightTo30Days} />
+              <Dot color={CG} label="Within last 7 Days" value={c.learnersLoggedIn.within7Days} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Row 3: Tasks Due bars */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <TasksDueCard />
+      {/* ── Row 3: On Target · On Target OTJ · No OTJ Activity ──────────────── */}
+      <div style={GRID3}>
+
+        {/* Learners on Target */}
+        <div style={CARD}>
+          <StatCardHeader title="Learners on Target" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <FigmaPie size={170} slices={[
+              { value: c.learnersOnTarget.behind,   color: CR },
+              { value: c.learnersOnTarget.onTarget, color: CO },
+              { value: c.learnersOnTarget.ahead,    color: CG },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CR} label="Behind target"  value={c.learnersOnTarget.behind} />
+              <Dot color={CO} label="On target"      value={c.learnersOnTarget.onTarget} />
+              <Dot color={CG} label="Ahead of target" value={c.learnersOnTarget.ahead} />
+            </div>
+          </div>
+        </div>
+
+        {/* Learners on Target OTJ */}
+        <div style={CARD}>
+          <StatCardHeader title="Learners on Target (Off-The-Job)" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <FigmaPie size={170} slices={[
+              { value: c.learnersOnTargetOTJ.behind,   color: CR },
+              { value: c.learnersOnTargetOTJ.onTarget, color: CO },
+              { value: c.learnersOnTargetOTJ.ahead,    color: CG },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CR} label="Behind target"   value={c.learnersOnTargetOTJ.behind} />
+              <Dot color={CO} label="On target"       value={c.learnersOnTargetOTJ.onTarget} />
+              <Dot color={CG} label="Ahead of target" value={c.learnersOnTargetOTJ.ahead} />
+            </div>
+          </div>
+        </div>
+
+        {/* No OTJ Activity */}
+        <div style={CARD}>
+          <StatCardHeader title="No Off-The-Job Activity" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <FigmaPie size={170} slices={[
+              { value: c.noOTJActivity.over4Weeks,    color: CG },
+              { value: c.noOTJActivity.oneToTwo,      color: CB },
+              { value: c.noOTJActivity.threeToFour,   color: CO },
+              { value: c.noOTJActivity.learningBreak, color: CB },
+              { value: c.noOTJActivity.twoToThree,    color: CA },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', justifyContent: 'center' }}>
+              <Dot color={CG} label="Over 4 Weeks"   value={c.noOTJActivity.over4Weeks} />
+              <Dot color={CB} label="1 to 2 Weeks"   value={c.noOTJActivity.oneToTwo} />
+              <Dot color={CO} label="3 to 4 Weeks"   value={c.noOTJActivity.threeToFour} />
+              <Dot color={CB} label="Learning Break" value={c.noOTJActivity.learningBreak} />
+              <Dot color={CA} label="2 to 3 Weeks"   value={c.noOTJActivity.twoToThree} />
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* ── Row 4: Progress Review Due · Task Due ────────────────────────────── */}
+      <div style={GRID2}>
+
+        {/* Progress review due */}
+        <div style={CARD}>
+          <StatCardHeader title="Progress review due" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+            <FigmaPie size={170} slices={[
+              { value: c.progressReviewDue.overdue,          color: CO },
+              { value: c.progressReviewDue.within7Days,      color: CG },
+              { value: c.progressReviewDue.sevenTo14Days,    color: CA },
+              { value: c.progressReviewDue.fourteenTo28Days, color: CT },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', justifyContent: 'center' }}>
+              <Dot color={CO} label="Overdue"                value={c.progressReviewDue.overdue} />
+              <Dot color={CG} label="Due in next 7 Days"     value={c.progressReviewDue.within7Days} />
+              <Dot color={CA} label="Due between 7-14 days"  value={c.progressReviewDue.sevenTo14Days} />
+              <Dot color={CT} label="Due between 14-28 days" value={c.progressReviewDue.fourteenTo28Days} />
+            </div>
+          </div>
+        </div>
+
+        {/* Task Due */}
+        <div style={CARD}>
+          <StatCardHeader title="Task Due" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 20 }}>
+            <HBar rows={[
+              { label: 'Immediately', value: c.tasksDue.immediately, color: CP },
+              { label: 'This week',   value: c.tasksDue.thisWeek,   color: CT },
+              { label: 'Next week',   value: c.tasksDue.nextWeek,   color: CA },
+              { label: 'In two weeks', value: c.tasksDue.inTwoWeeks, color: CG },
+            ]} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+              <Dot color={CP} label="Immediately"  value={c.tasksDue.immediately} />
+              <Dot color={CT} label="This week"    value={c.tasksDue.thisWeek} />
+              <Dot color={CA} label="Next week"    value={c.tasksDue.nextWeek} />
+              <Dot color={CG} label="In two weeks" value={c.tasksDue.inTwoWeeks} />
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
@@ -608,23 +1089,18 @@ function FormsContent() {
 function TrainerDashboardInner() {
   return (
     <div style={{ maxWidth: 1200, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Section 1 — Learner's Activity (always visible) */}
-      <LearnersActivitySection />
-
-      {/* Section 2 — Trainer's Dashboard (accordion, collapsed by default) */}
-      <Accordion title="Trainer's Dashboard">
-        <TrainerDashboardContent />
-      </Accordion>
-
-      {/* Section 3 — Learner Dashboard (accordion, collapsed by default) */}
-      <Accordion title="Learner Dashboard">
-        <LearnerDashboardContent />
-      </Accordion>
-
-      {/* Section 4 — Forms & Templates (accordion, collapsed by default) */}
-      <Accordion title="Forms & Templates">
-        <FormsContent />
-      </Accordion>
+      <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+        <div style={{
+          width: '100%', display: 'flex', alignItems: 'center',
+          padding: '14px 18px', background: '#fafafa',
+          borderBottom: '1px solid rgba(28,28,28,0.08)',
+        }}>
+          <span style={f(14, 600)}>Trainer's Dashboard</span>
+        </div>
+        <div style={{ padding: '18px' }}>
+          <TrainerDashboardContent />
+        </div>
+      </div>
     </div>
   )
 }
