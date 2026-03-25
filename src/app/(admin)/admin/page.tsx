@@ -575,7 +575,8 @@ interface CourseRecord {
   _id: string; title: string; description?: string; category?: string;
   modules?: number; duration?: string; status: string; thumbnailEmoji?: string;
   enrolledUsers?: string[]; createdAt?: string;
-  courseModules?: CourseModule[]
+  courseModules?: CourseModule[];
+  assignedTrainers?: string[];
 }
 
 const emptyQuestion = (): QuizQuestion => ({ question: '', options: ['', '', '', ''], correctIndex: 0, explanation: '' })
@@ -611,6 +612,12 @@ function CoursesPage({ token }: { token: string }) {
   const [enrollGroups, setEnrollGroups] = useState<{ _id: string; name: string; members: any[] }[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [enrollingGroup, setEnrollingGroup] = useState(false)
+  // Assign trainers modal
+  const [assignTrainerModal, setAssignTrainerModal] = useState<CourseRecord | null>(null)
+  const [allTrainers, setAllTrainers] = useState<{ _id: string; firstName: string; lastName: string; email: string }[]>([])
+  const [selectedTrainerIds, setSelectedTrainerIds] = useState<string[]>([])
+  const [trainerSearch, setTrainerSearch] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const LIMIT = 12
 
@@ -658,6 +665,41 @@ function CoursesPage({ token }: { token: string }) {
       .then(b => setEnrollGroups(Array.isArray(b?.data) ? b.data : []))
       .catch(() => {})
   }, [enrollGroupModal, token])
+
+  // Load trainers when assign trainer modal opens
+  useEffect(() => {
+    if (!assignTrainerModal) return
+    setSelectedTrainerIds((assignTrainerModal.assignedTrainers ?? []).slice())
+    setTrainerSearch('')
+    apiFetch(`${apiBase()}/users?limit=200&role=TRAINER`, token)
+      .then(r => r.json())
+      .then(b => setAllTrainers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
+      .catch(() => {})
+  }, [assignTrainerModal, token])
+
+  const handleAssignTrainers = async () => {
+    if (!assignTrainerModal || selectedTrainerIds.length === 0) return
+    setAssigning(true)
+    try {
+      const res = await apiFetch(`${apiBase()}/courses/${assignTrainerModal._id}/assign-trainers`, token, {
+        method: 'POST',
+        body: JSON.stringify({ trainerIds: selectedTrainerIds }),
+      })
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b?.message ?? 'Assign failed') }
+      setAssignTrainerModal(null); load()
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Assign failed') }
+    finally { setAssigning(false) }
+  }
+
+  const handleRevokeTrainer = async (courseId: string, trainerId: string) => {
+    try {
+      await apiFetch(`${apiBase()}/courses/${courseId}/assign-trainers/${trainerId}`, token, { method: 'DELETE' })
+      // Update local state immediately
+      setAssignTrainerModal(prev => prev ? { ...prev, assignedTrainers: (prev.assignedTrainers ?? []).filter(id => id !== trainerId) } : null)
+      setSelectedTrainerIds(prev => prev.filter(id => id !== trainerId))
+      load()
+    } catch { setError('Failed to revoke trainer') }
+  }
 
   const openCreate = () => {
     setForm({ title: '', description: '', category: '', duration: '', status: 'DRAFT', thumbnailEmoji: '📘' })
@@ -780,6 +822,11 @@ function CoursesPage({ token }: { token: string }) {
                     {c.modules != null && <span>{c.modules} modules</span>}
                     {c.duration && <span>{c.duration}</span>}
                     <span>{(c.enrolledUsers ?? []).length} enrolled</span>
+                    {(c.assignedTrainers ?? []).length > 0 && (
+                      <span style={{ color: INDIGO }}>
+                        {(c.assignedTrainers ?? []).length} trainer{(c.assignedTrainers ?? []).length !== 1 ? 's' : ''} assigned
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     {c.status === 'PUBLISHED'
@@ -796,6 +843,8 @@ function CoursesPage({ token }: { token: string }) {
                         onClick={() => setEnrollModal(c)}>Enroll</button>
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                         onClick={() => setEnrollGroupModal(c)}>Group</button>
+                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: INDIGO, borderColor: INDIGO }}
+                        onClick={() => setAssignTrainerModal(c)}>Trainers</button>
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                         onClick={() => openEdit(c)}>Edit</button>
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: RED }}
@@ -1106,6 +1155,89 @@ function CoursesPage({ token }: { token: string }) {
               {enrollingGroup ? 'Enrolling…' : selectedGroupId
                 ? `Enroll Group (${enrollGroups.find(g => g._id === selectedGroupId)?.members?.length ?? 0} members)`
                 : 'Select a Group'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Assign Trainers Modal */}
+      {assignTrainerModal && (
+        <Modal title={`Assign Trainers — ${assignTrainerModal.title}`} onClose={() => setAssignTrainerModal(null)}>
+          <div style={{ ...font(13, 400, MUTED), marginBottom: 12 }}>
+            Select trainers to give access to this course. They'll be able to view, manage, and enroll learners.
+          </div>
+
+          {/* Search box */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <input
+              style={{ ...inputStyle, paddingLeft: 34 }}
+              placeholder="Search trainers…"
+              value={trainerSearch}
+              onChange={e => setTrainerSearch(e.target.value)}
+            />
+            <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="6" cy="6" r="4.5" stroke={MUTED} strokeWidth="1.2" />
+              <path d="M9.5 9.5L12 12" stroke={MUTED} strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </div>
+
+          {/* Trainer list */}
+          {allTrainers.length === 0 ? (
+            <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: '20px 0' }}>
+              No trainers found. Add users with the TRAINER role first.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
+              {allTrainers
+                .filter(t => {
+                  const q = trainerSearch.toLowerCase()
+                  return !q || `${t.firstName} ${t.lastName} ${t.email}`.toLowerCase().includes(q)
+                })
+                .map(t => {
+                  const isAssigned = (assignTrainerModal.assignedTrainers ?? []).includes(t._id)
+                  const isSelected = selectedTrainerIds.includes(t._id)
+                  const initials = `${t.firstName?.[0] ?? ''}${t.lastName?.[0] ?? ''}`.toUpperCase()
+                  return (
+                    <div key={t._id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                        borderRadius: 10, border: `1.5px solid ${isSelected ? INDIGO : '#e0e0e8'}`,
+                        background: isSelected ? 'rgba(108,99,255,0.05)' : '#fff',
+                        cursor: 'pointer', transition: 'all 0.15s' }}
+                      onClick={() => setSelectedTrainerIds(prev =>
+                        prev.includes(t._id) ? prev.filter(id => id !== t._id) : [...prev, t._id]
+                      )}
+                    >
+                      <input type="checkbox" readOnly checked={isSelected}
+                        style={{ accentColor: INDIGO, cursor: 'pointer', flexShrink: 0 }} />
+                      <Avatar initials={initials} size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ ...font(13, 600, NAVY) }}>{t.firstName} {t.lastName}</div>
+                        <div style={{ ...font(11, 400, MUTED), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.email}</div>
+                      </div>
+                      {isAssigned && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ ...badge(INDIGO, 'rgba(108,99,255,0.1)'), fontSize: 11 }}>Has access</span>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleRevokeTrainer(assignTrainerModal._id, t._id) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED,
+                              fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                            title="Revoke access"
+                          >×</button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button style={btn()} onClick={() => setAssignTrainerModal(null)}>Cancel</button>
+            <button style={{ ...btn(true), opacity: selectedTrainerIds.length === 0 || assigning ? 0.6 : 1 }}
+              onClick={handleAssignTrainers}
+              disabled={assigning || selectedTrainerIds.length === 0}>
+              {assigning ? 'Assigning…' : `Assign ${selectedTrainerIds.length > 0 ? `(${selectedTrainerIds.length})` : ''} Trainer${selectedTrainerIds.length !== 1 ? 's' : ''}`}
             </button>
           </div>
         </Modal>

@@ -9,6 +9,20 @@ const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSPro
 
 const AVATAR_COLORS = ['#1c1c1c', '#3b5bdb', '#2f9e44', '#c92a2a', '#e67700', '#6741d9']
 
+function formatTimeAgo(dateStr: string): string {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 60) return `${diffMins} min ago`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 30) return `${diffDays} days ago`
+  return d.toLocaleDateString()
+}
+
 function initials(first: string, last: string) {
   return `${first?.[0] ?? ''}${last?.[0] ?? ''}`.toUpperCase()
 }
@@ -98,33 +112,30 @@ function FilterChip({
 function LearnerCard({ learner, index }: { learner: any; index: number }) {
   const fullName = `${learner.firstName} ${learner.lastName}`
 
-  // Mock programme data
-  const programmes = ['Level 3 Business Admin', 'Level 5 Operations Mgmt', 'Level 2 Customer Service']
-  const programme = programmes[index % programmes.length]
+  // Use real data from API if available, fallback to defaults
+  const programme = learner.programme || 'Not Assigned'
+  const employer = learner.employer || 'Not Assigned'
 
-  // Mock employer data
-  const employers = ['Acme Corp', 'TechStart Ltd', 'Global Services']
-  const employer = employers[index % employers.length]
-
-  // Derive progress from index
-  const progressPercent = 40 + ((index * 13) % 55)
-  const completedUnits = Math.floor((progressPercent / 100) * 8)
-  const totalUnits = 8
+  // Use real stats from enriched API response
+  const stats = learner.stats
+  const progressPercent = stats?.progressPercent ?? 0
+  const completedUnits = stats?.completedTasks ?? 0
+  const totalUnits = stats?.totalTasks ?? 0
 
   // Get status based on progress
   const status = getStatusFromProgress(progressPercent)
   const statusColors = getStatusBadgeColors(status)
   const progressBarColor = getProgressBarColor(status)
 
-  // Mock pending tasks
-  const pendingTasks = (index % 5) + 1
+  // Real data from stats
+  const pendingTasks = stats?.pendingTasks ?? 0
+  const unreadMessages = stats?.unreadMessages ?? 0
 
-  // Mock unread messages
-  const unreadMessages = index % 3
-
-  // Mock last activity
-  const activities = ['2 hours ago', 'Yesterday', '3 days ago']
-  const lastActivity = activities[index % activities.length]
+  // Format last activity
+  const lastActivityAt = learner.lastActivityAt
+  const lastActivity = lastActivityAt
+    ? formatTimeAgo(lastActivityAt)
+    : 'Never'
 
   return (
     <div
@@ -171,7 +182,7 @@ function LearnerCard({ learner, index }: { learner: any; index: number }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ ...font(12, 600, '#1c1c1c') }}>Overall Progress</div>
         <div style={{ ...font(12, 400, '#666') }}>
-          {completedUnits}/{totalUnits} units · {progressPercent}%
+          {completedUnits}/{totalUnits} tasks · {progressPercent}%
         </div>
         <div
           style={{
@@ -305,27 +316,27 @@ function LearnersInner() {
   const { data, isLoading, isError } = useTrainerLearners({ limit: 50 })
   const learners = data?.data ?? []
 
-  // Calculate status counts
-  const onTrackCount = learners.filter((l, i) => {
-    const progressPercent = 40 + ((i * 13) % 55)
-    return getStatusFromProgress(progressPercent) === 'On Track'
+  // Calculate status counts using real stats from API
+  const onTrackCount = learners.filter((l: any) => {
+    const pct = l.stats?.progressPercent ?? 0
+    return getStatusFromProgress(pct) === 'On Track'
   }).length
-  const behindCount = learners.filter((l, i) => {
-    const progressPercent = 40 + ((i * 13) % 55)
-    return getStatusFromProgress(progressPercent) === 'Behind'
+  const behindCount = learners.filter((l: any) => {
+    const pct = l.stats?.progressPercent ?? 0
+    return getStatusFromProgress(pct) === 'Behind'
   }).length
-  const atRiskCount = learners.filter((l, i) => {
-    const progressPercent = 40 + ((i * 13) % 55)
-    return getStatusFromProgress(progressPercent) === 'At Risk'
+  const atRiskCount = learners.filter((l: any) => {
+    const pct = l.stats?.progressPercent ?? 0
+    return getStatusFromProgress(pct) === 'At Risk'
   }).length
 
   // Filter learners based on selected filter
   const filteredLearners =
     filter === 'All'
       ? learners
-      : learners.filter((l, i) => {
-          const progressPercent = 40 + ((i * 13) % 55)
-          return getStatusFromProgress(progressPercent) === filter
+      : learners.filter((l: any) => {
+          const pct = l.stats?.progressPercent ?? 0
+          return getStatusFromProgress(pct) === filter
         })
 
   return (
@@ -418,8 +429,8 @@ function LearnersInner() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
-          {filteredLearners.map((learner, i) => (
-            <LearnerCard key={learner._id} learner={learner} index={learners.indexOf(learner)} />
+          {filteredLearners.map((learner: any, i: number) => (
+            <LearnerCard key={learner._id} learner={learner} index={i} />
           ))}
         </div>
       )}

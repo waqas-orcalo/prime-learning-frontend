@@ -27,6 +27,10 @@ export interface Resource {
   bookmarked: boolean          // annotated by the backend per request user
   featured: boolean
   uploadedBy: { _id: string; firstName: string; lastName: string; email: string } | null
+  /** Users this resource has been explicitly shared with */
+  sharedWith: string[]
+  /** True when the current user is the resource creator */
+  isOwner: boolean
   isDeleted: boolean
   createdAt: string
   updatedAt: string
@@ -212,5 +216,38 @@ export function useRecordDownload() {
   return useMutation<unknown, Error, string>({
     mutationFn: (id) =>
       apiFetch(`/resources/${id}/download`, token, { method: 'POST' }),
+  })
+}
+
+/**
+ * Share a resource with a list of user IDs (owner/admin only)
+ */
+export function useShareResource() {
+  const qc = useQueryClient()
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+
+  return useMutation<{ statusCode: number; message: string; data: Resource }, Error, { id: string; userIds: string[] }>({
+    mutationFn: ({ id, userIds }) =>
+      apiFetch(`/resources/${id}/share`, token, {
+        method: 'POST',
+        body: JSON.stringify({ userIds }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: RESOURCES_KEY }),
+  })
+}
+
+/**
+ * Revoke a specific user's access to a resource (owner/admin only)
+ */
+export function useRevokeShare() {
+  const qc = useQueryClient()
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+
+  return useMutation<{ statusCode: number; message: string; data: Resource }, Error, { resourceId: string; userId: string }>({
+    mutationFn: ({ resourceId, userId }) =>
+      apiFetch(`/resources/${resourceId}/share/${userId}`, token, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: RESOURCES_KEY }),
   })
 }
