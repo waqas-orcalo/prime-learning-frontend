@@ -31,7 +31,7 @@ const NAV_MAIN = [
     { label: 'Scorecard', href: '/scorecard', icon: 'scorecard' },
     { label: 'Courses', href: '/courses', icon: 'courses' },
     { label: 'Progress', href: '/progress-review', icon: 'progress' },
-    { label: 'Resources', href: '/resources', icon: 'resources' },
+    // { label: 'Resources', href: '/resources', icon: 'resources' },
     { label: 'Help Centre', href: '/help', icon: 'help' },
     { label: 'Message', href: '/messages', icon: 'message' },
   ]},

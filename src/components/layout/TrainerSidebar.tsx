@@ -21,8 +21,8 @@ const NAV_ITEMS = [
   { label: 'Tasks',       href: '/trainer-dashboard/tasks',      icon: 'tasks',     exact: false },
   { label: 'Courses',     href: '/trainer-dashboard/courses',    icon: 'courses',   exact: false },
   { label: 'Message',     href: '/trainer-dashboard/messages',   icon: 'message',   exact: false },
-  { label: 'Reports',     href: '/trainer-dashboard/reports',    icon: 'reports',   exact: false },
-  { label: 'Resources',   href: '/trainer-dashboard/resources',  icon: 'resources', exact: false },
+  // { label: 'Reports',     href: '/trainer-dashboard/reports',    icon: 'reports',   exact: false },
+  // { label: 'Resources',   href: '/trainer-dashboard/resources',  icon: 'resources', exact: false },
   { label: 'Help Centre', href: '/trainer-dashboard/help-centre',icon: 'help',      exact: false },
 ]
 
