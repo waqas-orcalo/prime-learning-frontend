@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import { useTrainerTasks } from '@/hooks/use-trainer'
+import { useTrainerTasks, useTrainerLearners } from '@/hooks/use-trainer'
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
@@ -36,9 +36,9 @@ function StatusBadge({ status }: { status: string }) {
 function SkeletonRow() {
   return (
     <tr>
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <td key={i} style={TD}>
-          <div style={{ height: 13, width: i === 1 ? '70%' : '50%', background: '#f0f0f0', borderRadius: 4 }} />
+          <div style={{ height: 13, width: i === 2 ? '70%' : '50%', background: '#f0f0f0', borderRadius: 4 }} />
         </td>
       ))}
     </tr>
@@ -213,7 +213,17 @@ function TasksInner() {
     status: statusFilter || undefined,
   })
 
-  const tasks = (data?.data ?? []).filter(task => !hiddenTasks.has(task._id || (task as any).id || ''))
+  const { data: learnersData } = useTrainerLearners({ limit: 200 })
+  const myLearners = learnersData?.data ?? []
+
+  const tasks = (data?.data ?? [])
+    .filter(task => !hiddenTasks.has(task._id || (task as any).id || ''))
+    .filter(task => {
+      if (!learnerFilter) return true
+      const assigned = task.assignedTo?._id || ''
+      const created = task.createdBy?._id || ''
+      return assigned === learnerFilter || created === learnerFilter
+    })
   const pendingCount = tasks.filter(t => t.status === 'pending').length
 
   const handleHideTask = (taskId: string) => {
@@ -271,6 +281,9 @@ function TasksInner() {
             }}
           >
             <option value="">Everyone</option>
+            {myLearners.map(l => (
+              <option key={l._id} value={l._id}>{l.firstName} {l.lastName}</option>
+            ))}
           </select>
         </div>
 
@@ -339,6 +352,7 @@ function TasksInner() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={TH}>Learner</th>
                 <th style={TH}>Date Set</th>
                 <th style={TH}>Task</th>
                 <th style={TH}>Date Due</th>
@@ -353,7 +367,7 @@ function TasksInner() {
                 : tasks.length === 0
                   ? (
                     <tr>
-                      <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '40px' }}>
+                      <td colSpan={7} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '40px' }}>
                         No tasks to display.
                       </td>
                     </tr>
@@ -361,11 +375,14 @@ function TasksInner() {
                   : tasks.map((task, i) => {
                     const taskId = task._id || (task as any).id || i.toString()
                     const overdue = isOverdueTask(task.dueDate, task.status)
+                    const learner = task.assignedTo || task.createdBy
+                    const learnerName = learner ? `${learner.firstName} ${learner.lastName}` : '—'
                     return (
                       <tr key={taskId}
                         onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                         onMouseLeave={e => (e.currentTarget.style.background = '')}
                       >
+                        <td style={TD}><span style={font(12, 500)}>{learnerName}</span></td>
                         <td style={TD}>{fmtDate(task.createdAt)}</td>
                         <td style={{ ...TD, maxWidth: 280 }}>
                           <a

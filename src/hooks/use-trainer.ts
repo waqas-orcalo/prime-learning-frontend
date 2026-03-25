@@ -222,42 +222,7 @@ export function useTrainerLearnerProgress(learnerId: string | undefined) {
   })
 }
 
-/** Assign a learner to this trainer */
-export function useAssignLearner() {
-  const qc = useQueryClient()
-  const { data: session } = useSession()
-  const token = (session?.user as any)?.accessToken as string | undefined
-  return useMutation<SingleResponse<LearnerUser>, Error, { learnerId: string; cohort?: string; programme?: string; employer?: string }>({
-    mutationFn: (payload) =>
-      apiFetch('/trainer/assign-learner', token, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: LEARNERS_KEY })
-      qc.invalidateQueries({ queryKey: TRAINER_KEY })
-    },
-  })
-}
-
-/** Unassign a learner from this trainer */
-export function useUnassignLearner() {
-  const qc = useQueryClient()
-  const { data: session } = useSession()
-  const token = (session?.user as any)?.accessToken as string | undefined
-  return useMutation<SingleResponse<LearnerUser>, Error, string>({
-    mutationFn: (learnerId) =>
-      apiFetch(`/trainer/unassign-learner/${learnerId}`, token, {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: LEARNERS_KEY })
-      qc.invalidateQueries({ queryKey: TRAINER_KEY })
-    },
-  })
-}
-
-/** List tasks (trainer sees all tasks via existing /tasks endpoint) */
+/** List tasks scoped to the trainer's assigned learners (via /trainer/tasks) */
 export function useTrainerTasks(params: { page?: number; limit?: number; status?: string } = {}) {
   const { data: session } = useSession()
   const token = (session?.user as any)?.accessToken as string | undefined
@@ -269,24 +234,23 @@ export function useTrainerTasks(params: { page?: number; limit?: number; status?
       if (params.limit)  qs.set('limit',  String(params.limit))
       if (params.status) qs.set('status', params.status)
       const q = qs.toString() ? `?${qs.toString()}` : ''
-      return apiFetch(`/tasks${q}`, token)
+      return apiFetch(`/trainer/tasks${q}`, token)
     },
     enabled: !!token,
     staleTime: 30_000,
   })
 }
 
-/** List learning journals (trainer sees all via existing /learning-journals) */
-export function useTrainerJournals(params: { page?: number; limit?: number; status?: string } = {}) {
+/** List learning journals scoped to the trainer's assigned learners */
+export function useTrainerJournals(params: { page?: number; limit?: number } = {}) {
   const { data: session } = useSession()
   const token = (session?.user as any)?.accessToken as string | undefined
   return useQuery<PaginatedResponse<LearningJournal>>({
     queryKey: [...JOURNALS_KEY, params],
     queryFn: () => {
       const qs = new URLSearchParams()
-      if (params.page)   qs.set('page',   String(params.page))
-      if (params.limit)  qs.set('limit',  String(params.limit))
-      if (params.status) qs.set('status', params.status)
+      if (params.page)  qs.set('page',  String(params.page))
+      if (params.limit) qs.set('limit', String(params.limit))
       const q = qs.toString() ? `?${qs.toString()}` : ''
       return apiFetch(`/learning-journals${q}`, token)
     },
@@ -295,29 +259,23 @@ export function useTrainerJournals(params: { page?: number; limit?: number; stat
   })
 }
 
-/** Update a journal (trainer feedback / status) */
-export function useUpdateTrainerJournal() {
-  const qc = useQueryClient()
+/** Get all chart data for the trainer dashboard */
+export function useTrainerDashboardCharts() {
   const { data: session } = useSession()
   const token = (session?.user as any)?.accessToken as string | undefined
-  return useMutation<SingleResponse<LearningJournal>, Error, { id: string; trainerFeedback?: string; status?: string }>({
-    mutationFn: ({ id, ...payload }) =>
-      apiFetch(`/learning-journals/${id}`, token, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: JOURNALS_KEY }),
+  return useQuery({
+    queryKey: [...TRAINER_KEY, 'charts'],
+    queryFn: () => apiFetch('/trainer/dashboard/charts', token),
+    enabled: !!token,
+    staleTime: 60_000,
   })
 }
 
-/** Get trainer report by type */
-export function useTrainerReport(
-  type: string,
-  params: { page?: number; limit?: number; cohort?: string; programme?: string; from?: string; to?: string } = {},
-) {
+/** Get a trainer report by type */
+export function useTrainerReport(type: string | undefined, params: { page?: number; limit?: number; cohort?: string; programme?: string; from?: string; to?: string } = {}) {
   const { data: session } = useSession()
   const token = (session?.user as any)?.accessToken as string | undefined
-  return useQuery<PaginatedResponse<any>>({
+  return useQuery({
     queryKey: ['trainer-report', type, params],
     queryFn: () => {
       const qs = new URLSearchParams()
@@ -332,5 +290,29 @@ export function useTrainerReport(
     },
     enabled: !!token && !!type,
     staleTime: 30_000,
+  })
+}
+
+/** Assign a learner to this trainer */
+export function useAssignLearner() {
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (dto: { learnerId: string; cohort?: string; programme?: string; employer?: string }) =>
+      apiFetch('/trainer/assign-learner', token, { method: 'POST', body: JSON.stringify(dto) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: LEARNERS_KEY }),
+  })
+}
+
+/** Unassign a learner from this trainer */
+export function useUnassignLearner() {
+  const { data: session } = useSession()
+  const token = (session?.user as any)?.accessToken as string | undefined
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (learnerId: string) =>
+      apiFetch(`/trainer/unassign-learner/${learnerId}`, token, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: LEARNERS_KEY }),
   })
 }
