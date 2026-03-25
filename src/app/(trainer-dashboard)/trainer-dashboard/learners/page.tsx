@@ -341,7 +341,14 @@ function LearnersInner() {
 
   return (
     <div style={{ maxWidth: 1200, ...FF }}>
-      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      <style>{`
+        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @media(max-width:480px){
+          .learners-grid { grid-template-columns: 1fr !important; }
+          .learners-topbar { flex-direction: column !important; align-items: flex-start !important; }
+          .learners-topbar .more-filters-btn { margin-left: 0 !important; }
+        }
+      `}</style>
 
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
@@ -349,7 +356,7 @@ function LearnersInner() {
       </div>
 
       {/* Top bar with filter chips and more filters button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+      <div className="learners-topbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         {/* Filter chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <FilterChip label="All" isActive={filter === 'All'} onClick={() => setFilter('All')} />
@@ -416,19 +423,19 @@ function LearnersInner() {
 
       {/* Loading state */}
       {isLoading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+        <div className="learners-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
       ) : filteredLearners.length === 0 ? (
-        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#aaa' }}>
           <p style={font(16, 400, '#aaa')}>
             {filter === 'All' ? 'No learners found.' : `No learners ${filter.toLowerCase()}.`}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+        <div className="learners-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {filteredLearners.map((learner: any, i: number) => (
             <LearnerCard key={learner._id} learner={learner} index={i} />
           ))}

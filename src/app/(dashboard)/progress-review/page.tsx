@@ -220,7 +220,7 @@ function ProgressReviewInner() {
           Loading progress data...
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <div className="l-grid-3">
           {displayUnits.map(unit => (
             <UnitCard key={unit.id} unit={unit} onClick={() => router.push(`/progress-review/${unit.id}`)} />
           ))}

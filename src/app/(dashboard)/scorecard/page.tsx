@@ -82,7 +82,7 @@ function ScorecardInner() {
 
   return (
     <div style={{ padding: '24px 28px', ...FF }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, maxWidth: 1060 }}>
+      <div className="l-grid-2" style={{ maxWidth: 1060 }}>
 
         {/* Left: Scorecards list */}
         <div style={{ border: '1px solid rgba(28,28,28,0.12)', borderRadius: 12, overflow: 'hidden' }}>

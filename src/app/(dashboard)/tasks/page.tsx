@@ -316,12 +316,7 @@ export default function TasksPage() {
         <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
           {/* ── Function Bar ── */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderRadius: '8px',
-          }}>
+          <div className="l-filter-bar" style={{ borderRadius: '8px' }}>
             {/* Left group: Period + Status dropdowns */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {/* Period label */}
@@ -397,7 +392,8 @@ export default function TasksPage() {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <div className="l-table-wrap">
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '640px' }}>
               <colgroup>
                 <col style={{ width: '172px' }} />
                 <col />  {/* Task: flex */}
@@ -508,6 +504,7 @@ export default function TasksPage() {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

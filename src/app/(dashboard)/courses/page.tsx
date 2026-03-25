@@ -1209,7 +1209,7 @@ export default function CoursesPage() {
             </div>
           ) : (
             // Course grid
-            <div style={{
+            <div className="l-courses-grid" style={{
               display: 'flex',
               flexWrap: 'wrap',
               gap: '16px',

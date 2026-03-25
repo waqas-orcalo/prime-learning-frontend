@@ -67,7 +67,11 @@ export default function ReportsPage() {
       <p style={{ ...font(13, 400, '#666'), marginBottom: 28 }}>View detailed insights across all your learners and programmes.</p>
 
       {REPORT_CARDS.map((row, ri) => (
-        <div key={ri} style={{ display: 'grid', gridTemplateColumns: `repeat(${row.length}, 1fr)`, gap: 16, marginBottom: 16 }}>
+        <div
+          key={ri}
+          className="t-reports-row"
+          data-cols={String(row.length)}
+        >
           {row.map(card => <ReportCard key={card.href} label={card.label} desc={card.desc} href={card.href} />)}
         </div>
       ))}

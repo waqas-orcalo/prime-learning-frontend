@@ -302,14 +302,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Three Chart Cards */}
-      <div style={{ display: 'flex', gap: '30px', marginBottom: '30px', overflowX: 'auto' as const }}>
+      <div className="l-card-row" style={{ overflowX: 'auto' as const }}>
         <DonutChartCard progress={progressPct} />
         <CalendarCard />
         <BarChartCard taskBuckets={taskBuckets} />
       </div>
 
       {/* Three Info Cards */}
-      <div style={{ display: 'flex', gap: '30px', marginBottom: '30px' }}>
+      <div className="l-card-row">
         {INFO_CARDS.map((card, i) => (
           <div key={i} onClick={() => router.push(card.route)} style={{ ...cardStyle, padding: '30px', display: 'flex', flexDirection: 'column' as const, gap: '12px', flex: 1, cursor: 'pointer' }}>
             <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
@@ -330,20 +330,21 @@ export default function DashboardPage() {
       </div>
 
       {/* Black Info Bar */}
-      <div style={{ backgroundColor: '#1c1c1c', borderRadius: '8px', padding: '8px', display: 'flex', marginBottom: '30px' }}>
+      <div className="l-info-bar">
         {[
           { text: `Workplace : ${workplace}`, ul: true },
           { text: `Trainer : ${trainerName}`, ul: false },
           { text: `Phone number: ${(session?.user as any)?.phone ?? '—'}`, ul: false },
           { text: `Email: ${(session?.user as any)?.email ?? '—'}`, ul: true },
         ].map((item, i) => (
-          <div key={i} style={{ flex: 1, padding: '8px 16px', textAlign: 'center' as const, ...font(14, 700, '#fff'), textDecoration: item.ul ? 'underline' : 'none', whiteSpace: 'nowrap' as const }}>{item.text}</div>
+          <div key={i} style={{ flex: 1, padding: '8px 16px', textAlign: 'center' as const, ...font(14, 700, '#fff'), textDecoration: item.ul ? 'underline' : 'none' }}>{item.text}</div>
         ))}
       </div>
 
       {/* Learning Aims + Info Options */}
-      <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-        <div style={{ ...cardStyle, flex: 1, padding: '12px' }}>
+      <div className="l-bottom-row">
+        <div style={{ ...cardStyle, flex: 1, padding: '12px', minWidth: 0 }}>
+          <div className="l-table-wrap">
           <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(28,28,28,0.1)' }}>
@@ -367,6 +368,7 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div style={{ ...cardStyle, width: '345px', flexShrink: 0, display: 'flex', flexDirection: 'column' as const }}>
