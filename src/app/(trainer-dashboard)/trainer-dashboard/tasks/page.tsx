@@ -1,66 +1,197 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTrainerTasks, useTrainerLearners } from '@/hooks/use-trainer'
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
   ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, lineHeight: '1.5', ...extra } as React.CSSProperties)
 
-const TH: React.CSSProperties = { padding: '10px 14px', ...font(12, 500, '#555') as object, textAlign: 'left', borderBottom: '1px solid rgba(28,28,28,0.1)', background: '#fafafa', whiteSpace: 'nowrap' }
-const TD: React.CSSProperties = { padding: '12px 14px', ...font(12) as object, borderBottom: '1px solid rgba(28,28,28,0.06)', verticalAlign: 'middle' }
-
-const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  // uppercase (backend enum values)
-  PENDING:     { bg: '#fef9c3', color: '#854d0e', label: 'Pending'     },
-  IN_PROGRESS: { bg: '#dbeafe', color: '#1e40af', label: 'In Progress' },
-  COMPLETED:   { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
-  SUBMITTED:   { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
-  APPROVED:    { bg: '#dcfce7', color: '#15803d', label: 'Approved'    },
-  REJECTED:    { bg: '#fee2e2', color: '#b91c1c', label: 'Rejected'    },
-  // lowercase fallbacks
-  pending:     { bg: '#fef9c3', color: '#854d0e', label: 'Pending'     },
-  in_progress: { bg: '#dbeafe', color: '#1e40af', label: 'In Progress' },
-  complete:    { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
-  submitted:   { bg: '#dcfce7', color: '#15803d', label: 'Complete'    },
-  approved:    { bg: '#dcfce7', color: '#15803d', label: 'Approved'    },
-  rejected:    { bg: '#fee2e2', color: '#b91c1c', label: 'Rejected'    },
+// ── Status colors matching admin panel ─────────────────────────────────────
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  PENDING:     { label: 'Pending',     color: '#59a8d4' },
+  IN_PROGRESS: { label: 'In Progress', color: '#8a8cd9' },
+  COMPLETED:   { label: 'Complete',    color: '#4aa785' },
+  CANCELLED:   { label: 'Cancelled',   color: 'rgba(28,28,28,0.4)' },
+  OVERDUE:     { label: 'Overdue',     color: '#f87171' },
+  // lowercase variants
+  pending:     { label: 'Pending',     color: '#59a8d4' },
+  in_progress: { label: 'In Progress', color: '#8a8cd9' },
+  complete:    { label: 'Complete',    color: '#4aa785' },
+  completed:   { label: 'Complete',    color: '#4aa785' },
+  approved:    { label: 'Approved',    color: '#ffc555' },
+  rejected:    { label: 'Rejected',    color: 'rgba(28,28,28,0.4)' },
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLES[status] ?? STATUS_STYLES[(status ?? '').toUpperCase()] ?? { bg: '#f3f4f6', color: '#374151', label: status }
+const PERIOD_OPTIONS = ['Show All', 'Today', 'This Week', 'This Month', 'Last Month']
+const STATUS_OPTIONS = ['All Statuses', 'Pending task', 'In Progress', 'Complete', 'Overdue', 'Cancelled']
+
+const STATUS_FILTER_MAP: Record<string, string[]> = {
+  'All Statuses': [],
+  'Pending task': ['PENDING', 'pending'],
+  'In Progress':  ['IN_PROGRESS', 'in_progress'],
+  'Complete':     ['COMPLETED', 'COMPLETE', 'complete', 'approved'],
+  'Overdue':      ['OVERDUE', 'overdue'],
+  'Cancelled':    ['CANCELLED', 'cancelled'],
+}
+
+// ── Arrow icon ─────────────────────────────────────────────────────────────
+function ArrowDown() {
   return (
-    <span style={{
-      padding: '4px 10px', borderRadius: 4,
-      background: s.bg,
-      color: s.color,
-      ...font(11, 500, s.color),
-    }}>
-      {s.label}
-    </span>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M4 6l4 4 4-4" stroke="#1c1c1c" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   )
 }
 
-function SkeletonRow() {
+// ── Custom Dropdown ────────────────────────────────────────────────────────
+function DropdownButton({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   return (
-    <tr>
-      {Array.from({ length: 7 }).map((_, i) => (
-        <td key={i} style={TD}>
-          <div style={{ height: 13, width: i === 2 ? '70%' : '50%', background: '#f0f0f0', borderRadius: 4 }} />
-        </td>
-      ))}
-    </tr>
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          ...font(14, 400),
+          display: 'flex', alignItems: 'center', gap: '4px',
+          padding: '4px 8px', height: '28px',
+          border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px',
+          backgroundColor: '#fff', cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
+        }}
+      >
+        {value}<ArrowDown />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '32px', left: 0, zIndex: 100,
+          backgroundColor: '#fff', border: '1px solid rgba(28,28,28,0.1)',
+          borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          minWidth: '140px', overflow: 'hidden',
+        }}>
+          {options.map(o => (
+            <button
+              key={o}
+              onClick={() => { onChange(o); setOpen(false) }}
+              style={{
+                ...font(14, value === o ? 500 : 400, value === o ? '#1c1c1c' : 'rgba(28,28,28,0.7)'),
+                display: 'block', width: '100%', padding: '8px 12px',
+                background: value === o ? 'rgba(28,28,28,0.04)' : 'transparent',
+                border: 'none', textAlign: 'left', cursor: 'pointer',
+              }}
+            >{o}</button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
-function fmtDate(d: string | undefined) {
-  if (!d) return '—'
-  return new Date(d).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+// ── Learner Dropdown (with learner list) ───────────────────────────────────
+function LearnerDropdown({ value, learners, onChange }: {
+  value: string
+  learners: Array<{ _id: string; firstName: string; lastName: string }>
+  onChange: (v: string) => void
+}) {
+  const options = [{ _id: '', firstName: 'All', lastName: 'Learners' }, ...learners]
+  const selected = options.find(l => l._id === value)
+  const label = selected ? `${selected.firstName} ${selected.lastName}` : 'All Learners'
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          ...font(14, 400),
+          display: 'flex', alignItems: 'center', gap: '4px',
+          padding: '4px 8px', height: '28px',
+          border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px',
+          backgroundColor: '#fff', cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
+        }}
+      >
+        {label}<ArrowDown />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '32px', left: 0, zIndex: 100,
+          backgroundColor: '#fff', border: '1px solid rgba(28,28,28,0.1)',
+          borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          minWidth: '160px', overflow: 'hidden',
+        }}>
+          {options.map(l => (
+            <button
+              key={l._id}
+              onClick={() => { onChange(l._id); setOpen(false) }}
+              style={{
+                ...font(14, value === l._id ? 500 : 400, value === l._id ? '#1c1c1c' : 'rgba(28,28,28,0.7)'),
+                display: 'block', width: '100%', padding: '8px 12px',
+                background: value === l._id ? 'rgba(28,28,28,0.04)' : 'transparent',
+                border: 'none', textAlign: 'left', cursor: 'pointer',
+              }}
+            >{l.firstName} {l.lastName}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
-function isOverdueTask(dueDate: string | undefined, status: string): boolean {
-  if (!dueDate || status === 'approved' || status === 'complete' || status === 'submitted') return false
-  return new Date(dueDate) < new Date()
+// ── Status dot + label (matches admin panel) ───────────────────────────────
+function StatusLabel({ status }: { status: string }) {
+  const st = STATUS_MAP[status] ?? STATUS_MAP[status?.toLowerCase()] ?? { label: status, color: 'rgba(28,28,28,0.4)' }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ width: '16px', height: '16px', position: 'relative', flexShrink: 0 }}>
+        <div style={{ position: 'absolute', inset: '31.25%', borderRadius: '50%', backgroundColor: st.color }} />
+      </div>
+      <span style={font(14, 400, st.color, { whiteSpace: 'nowrap' })}>{st.label}</span>
+    </div>
+  )
+}
+
+function formatDate(dt?: string) {
+  if (!dt) return '—'
+  const d = new Date(dt)
+  if (isNaN(d.getTime())) return dt
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ── Table header / cell ────────────────────────────────────────────────────
+function TH({ children, align = 'left', width }: { children: React.ReactNode; align?: 'left' | 'center'; width?: string }) {
+  return (
+    <th style={{
+      ...font(14, 400, 'rgba(28,28,28,0.6)', { lineHeight: '18px' }),
+      padding: '11px 16px', textAlign: align, fontWeight: 400,
+      borderLeft: '1px solid transparent', whiteSpace: 'nowrap',
+      width,
+    }}>{children}</th>
+  )
+}
+function TD({ children, align = 'left', style: s }: { children: React.ReactNode; align?: 'left' | 'center'; style?: React.CSSProperties }) {
+  return (
+    <td style={{ padding: '8px 16px', verticalAlign: 'middle', textAlign: align, ...s }}>{children}</td>
+  )
 }
 
 interface Task {
@@ -68,388 +199,237 @@ interface Task {
   id?: string
   title: string
   status: string
+  priority?: string
   dueDate?: string
   createdAt?: string
-  assignedTo?: { firstName: string; lastName: string }
-  createdBy?: { firstName: string; lastName: string }
+  updatedAt?: string
+  assignedTo?: { _id: string; firstName: string; lastName: string; email?: string }
+  createdBy?: { _id: string; firstName: string; lastName: string; email?: string }
 }
 
-interface ReassignModalProps {
-  isOpen: boolean
-  task: Task | null
-  onClose: () => void
-}
-
-function ReassignModal({ isOpen, task, onClose }: ReassignModalProps) {
-  const [reassignTo, setReassignTo] = useState<'trainer' | 'learner'>('trainer')
-  const [comments, setComments] = useState('')
-
-  if (!isOpen || !task) return null
-
-  const handleSubmit = () => {
-    // TODO: Call API to reassign task
-    console.log('Reassign to:', reassignTo, 'Comments:', comments)
-    onClose()
-  }
-
+function SkeletonRow() {
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 12, maxWidth: 480, width: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden'
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '16px 20px', borderBottom: '1px solid rgba(28,28,28,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-        }}>
-          <h2 style={font(16, 700)}>Reassign Task</h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#666', padding: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Yellow warning banner */}
-        <div style={{ padding: '10px 16px', background: '#fef9c3', borderBottom: '1px solid #fbbf24' }}>
-          <p style={font(13, 500, '#854d0e')}>{task.title}</p>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '20px 20px' }}>
-          <p style={font(13, 400, '#555', { marginBottom: 16 })}>
-            You can reassign this task to the following user(s). If you need to reassign this task to a different user then you must contact your Centre Manager.
-          </p>
-
-          {/* Reassign to label */}
-          <label style={font(13, 600, '#1c1c1c', { display: 'block', marginBottom: 12 })}>
-            Reassign task to:
-          </label>
-
-          {/* Radio buttons */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="reassign"
-                value="trainer"
-                checked={reassignTo === 'trainer'}
-                onChange={() => setReassignTo('trainer')}
-                style={{ display: 'none' }}
-              />
-              <div style={{
-                width: 16, height: 16, borderRadius: '50%', border: '2px solid #1c1c1c',
-                background: reassignTo === 'trainer' ? '#1c1c1c' : 'transparent', transition: 'all 0.2s'
-              }} />
-              <span style={font(13, 400)}>Reassign to Trainer</span>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="reassign"
-                value="learner"
-                checked={reassignTo === 'learner'}
-                onChange={() => setReassignTo('learner')}
-                style={{ display: 'none' }}
-              />
-              <div style={{
-                width: 16, height: 16, borderRadius: '50%', border: '2px solid #1c1c1c',
-                background: reassignTo === 'learner' ? '#1c1c1c' : 'transparent', transition: 'all 0.2s'
-              }} />
-              <span style={font(13, 400)}>Reassign to Learner</span>
-            </label>
-          </div>
-
-          {/* Comments label */}
-          <label style={font(13, 600, '#1c1c1c', { display: 'block', marginBottom: 8 })}>
-            Add additional comments or instructions to recipient (optional):
-          </label>
-
-          {/* Textarea */}
-          <textarea
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            placeholder="Enter your comments here..."
-            style={{
-              width: '100%', minHeight: 100, padding: '10px 12px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6,
-              ...font(13, 400), fontFamily: "'Inter', sans-serif", resize: 'vertical', boxSizing: 'border-box', marginBottom: 20
-            }}
-          />
-
-          {/* Footer buttons */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '8px 16px', border: '1px solid rgba(28,28,28,0.2)', background: '#fff', borderRadius: 6,
-                cursor: 'pointer', ...font(13, 500), transition: 'all 0.2s'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              style={{
-                padding: '8px 16px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 6,
-                cursor: 'pointer', ...font(13, 500, '#fff'), transition: 'all 0.2s'
-              }}
-            >
-              Reassign Task
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <tr style={{ borderBottom: '1px solid rgba(28,28,28,0.1)' }}>
+      {[160, undefined, 140, 140, 120, 100].map((w, i) => (
+        <td key={i} style={{ padding: '12px 16px' }}>
+          <div style={{ height: 13, width: w ?? '70%', background: '#f0f0f0', borderRadius: 4,
+            backgroundImage: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
+            backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }} />
+        </td>
+      ))}
+    </tr>
   )
 }
 
 function TasksInner() {
-  const [cohortFilter, setCohortFilter] = useState('')
+  const router = useRouter()
+  const [period, setPeriod] = useState('Show All')
+  const [statusFilter, setStatusFilter] = useState('All Statuses')
   const [learnerFilter, setLearnerFilter] = useState('')
-  const [periodFilter, setPeriodFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [hiddenTasks, setHiddenTasks] = useState<Set<string>>(new Set())
-  const [reassignModal, setReassignModal] = useState<{ isOpen: boolean; task: Task | null }>({ isOpen: false, task: null })
 
-  const { data, isLoading, isError } = useTrainerTasks({
-    limit: 100,
-    status: statusFilter || undefined,
-  })
-
+  const { data, isLoading, isError, refetch } = useTrainerTasks({ limit: 200 })
   const { data: learnersData } = useTrainerLearners({ limit: 200 })
+
+  const allTasks: Task[] = data?.data ?? []
   const myLearners = learnersData?.data ?? []
 
-  const tasks = (data?.data ?? [])
-    .filter(task => !hiddenTasks.has(task._id || (task as any).id || ''))
-    .filter(task => {
-      if (!learnerFilter) return true
-      const assigned = task.assignedTo?._id || ''
-      const created = task.createdBy?._id || ''
-      return assigned === learnerFilter || created === learnerFilter
-    })
-  const pendingCount = tasks.filter(t => t.status === 'pending').length
+  // Client-side filtering
+  const filtered = allTasks.filter(t => {
+    // Status filter
+    const allowed = STATUS_FILTER_MAP[statusFilter]
+    if (allowed && allowed.length > 0 && !allowed.includes(t.status)) return false
 
-  const handleHideTask = (taskId: string) => {
-    const newHidden = new Set(hiddenTasks)
-    newHidden.add(taskId)
-    setHiddenTasks(newHidden)
-  }
+    // Learner filter
+    if (learnerFilter) {
+      const assignedId = t.assignedTo?._id ?? ''
+      const createdId = t.createdBy?._id ?? ''
+      if (assignedId !== learnerFilter && createdId !== learnerFilter) return false
+    }
 
-  const handleReassignClick = (task: Task) => {
-    setReassignModal({ isOpen: true, task })
-  }
+    // Period filter
+    if (period !== 'Show All' && t.createdAt) {
+      const d = new Date(t.createdAt)
+      const now = new Date()
+      if (period === 'Today') {
+        if (d.toDateString() !== now.toDateString()) return false
+      } else if (period === 'This Week') {
+        const cutoff = new Date(now); cutoff.setDate(now.getDate() - 7)
+        if (d < cutoff) return false
+      } else if (period === 'This Month') {
+        if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return false
+      } else if (period === 'Last Month') {
+        const last = new Date(now); last.setMonth(now.getMonth() - 1)
+        if (d.getMonth() !== last.getMonth() || d.getFullYear() !== last.getFullYear()) return false
+      }
+    }
+    return true
+  })
+
+  const pendingCount = allTasks.filter(t =>
+    ['PENDING', 'IN_PROGRESS', 'pending', 'in_progress'].includes(t.status)
+  ).length
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', ...FF }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={font(28, 700)}>Tasks</h1>
+    <div>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+
+      {/* Assign New Task button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button
+          onClick={() => router.push('/trainer-dashboard/tasks/assign')}
+          style={{
+            ...font(14, 500, '#fff'),
+            backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px',
+            padding: '0 16px', height: '34px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '6px',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2v10M2 7h10" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          Assign New Task
+        </button>
       </div>
 
-      {/* Filter bar */}
-      <div className="tasks-filter-bar" style={{
-        display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap',
-        padding: '12px 16px', background: '#fafafa', borderRadius: 8
-      }}>
-        {/* Cohort filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={font(12, 500)}>Cohort:</label>
-          <select
-            value={cohortFilter}
-            onChange={e => setCohortFilter(e.target.value)}
-            style={{
-              padding: '6px 10px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, ...font(12),
-              background: '#fff', cursor: 'pointer', appearance: 'none', paddingRight: 26,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231c1c1c' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center'
-            }}
-          >
-            <option value="">Show All</option>
-          </select>
+      {/* Main card */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0px 2px 6px rgba(13,10,44,0.08)', overflow: 'hidden' }}>
+
+        {/* Card header */}
+        <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', height: '45px', display: 'flex', alignItems: 'center', padding: '0 16px', borderRadius: '12px 12px 0 0' }}>
+          <span style={font(18, 700, '#000', { letterSpacing: '-0.36px', lineHeight: 'normal' })}>Tasks</span>
         </div>
 
-        {/* Learner filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={font(12, 500)}>Learner:</label>
-          <select
-            value={learnerFilter}
-            onChange={e => setLearnerFilter(e.target.value)}
-            style={{
-              padding: '6px 10px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, ...font(12),
-              background: '#fff', cursor: 'pointer', appearance: 'none', paddingRight: 26,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231c1c1c' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center'
-            }}
-          >
-            <option value="">Everyone</option>
-            {myLearners.map(l => (
-              <option key={l._id} value={l._id}>{l.firstName} {l.lastName}</option>
-            ))}
-          </select>
-        </div>
+        {/* Card content */}
+        <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-        {/* Period filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={font(12, 500)}>Period:</label>
-          <select
-            value={periodFilter}
-            onChange={e => setPeriodFilter(e.target.value)}
-            style={{
-              padding: '6px 10px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, ...font(12),
-              background: '#fff', cursor: 'pointer', appearance: 'none', paddingRight: 26,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231c1c1c' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center'
-            }}
-          >
-            <option value="">Show All</option>
-          </select>
-        </div>
+          {/* Filter bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', backgroundColor: 'rgba(28,28,28,0.02)', borderRadius: '8px', border: '1px solid rgba(28,28,28,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={font(14, 400, '#1c1c1c', { padding: '4px 2px' })}>Learner:</span>
+              <LearnerDropdown value={learnerFilter} learners={myLearners} onChange={setLearnerFilter} />
+              <span style={font(14, 400, '#1c1c1c', { padding: '4px 2px', marginLeft: '4px' })}>Period:</span>
+              <DropdownButton value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
+              <span style={font(14, 400, '#1c1c1c', { padding: '4px 2px', marginLeft: '4px' })}>Status:</span>
+              <DropdownButton value={statusFilter} options={STATUS_OPTIONS} onChange={setStatusFilter} />
+              <button
+                onClick={() => refetch()}
+                title="Refresh"
+                style={{ ...font(12, 400, 'rgba(28,28,28,0.5)'), background: 'none', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', padding: '4px 8px', height: '28px', cursor: 'pointer', marginLeft: '4px' }}
+              >↻</button>
+            </div>
 
-        {/* Status filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={font(12, 500)}>Status:</label>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            style={{
-              padding: '6px 10px', border: '1px solid rgba(28,28,28,0.18)', borderRadius: 6, ...font(12),
-              background: '#fff', cursor: 'pointer', appearance: 'none', paddingRight: 26,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231c1c1c' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center'
-            }}
-          >
-            <option value="">All Statuses</option>
-            <option value="PENDING">Pending task</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="COMPLETED">Complete</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Pending badge */}
-      {pendingCount > 0 && (
-        <div style={{
-          padding: '12px 16px', background: '#fed7aa', border: '1px solid #fb923c', borderRadius: 6, marginBottom: 16
-        }}>
-          <p style={font(13, 500, '#92400e')}>
-            There are {pendingCount} pending task{pendingCount !== 1 ? 's' : ''}!
-          </p>
-        </div>
-      )}
-
-      {/* Table card */}
-      <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 8, overflow: 'hidden' }}>
-        {/* Error */}
-        {isError && (
-          <div style={{ padding: '12px 16px', background: '#fef2f2', borderBottom: '1px solid rgba(239,68,68,0.2)' }}>
-            <span style={font(12, 400, '#ef4444')}>Failed to load tasks. Please try again.</span>
+            {pendingCount > 0 && (
+              <div style={{ backgroundColor: '#ffe999', border: '1px solid rgba(28,28,28,0.1)', borderRadius: '8px', height: '28px', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                <span style={font(12, 400, '#1c1c1c', { whiteSpace: 'nowrap' })}>
+                  There are {pendingCount} pending task{pendingCount !== 1 ? 's' : ''}!
+                </span>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={TH}>Learner</th>
-                <th style={TH}>Date Set</th>
-                <th style={TH}>Task</th>
-                <th style={TH}>Date Due</th>
-                <th style={TH}>Date Completed</th>
-                <th style={TH}>Status</th>
-                <th style={{ ...TH, textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading
-                ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-                : tasks.length === 0
-                  ? (
+          {/* Table */}
+          {isError ? (
+            <div style={{ padding: '32px', textAlign: 'center' }}>
+              <div style={font(14, 400, '#dc2626', { marginBottom: '12px' })}>Failed to load tasks.</div>
+              <button onClick={() => refetch()} style={{ ...font(13, 500, '#fff'), backgroundColor: '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer' }}>Retry</button>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '700px' }}>
+                <colgroup>
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '110px' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(28,28,28,0.1)' }}>
+                    <TH>Learner</TH>
+                    <TH>Date Set</TH>
+                    <TH align="center">Task (click to view)</TH>
+                    <TH align="center">Date Due</TH>
+                    <TH align="center">Date Completed</TH>
+                    <TH align="center">Status</TH>
+                    <TH>Action</TH>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                  ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ ...TD, textAlign: 'center', color: '#aaa', padding: '40px' }}>
-                        No tasks to display.
+                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>
+                        {allTasks.length === 0 ? 'No tasks yet. Click "Assign New Task" to get started.' : 'No tasks match the selected filters.'}
                       </td>
                     </tr>
-                  )
-                  : tasks.map((task, i) => {
-                    const taskId = task._id || (task as any).id || i.toString()
-                    const overdue = isOverdueTask(task.dueDate, task.status)
-                    const learner = task.assignedTo || task.createdBy
-                    const learnerName = learner ? `${learner.firstName} ${learner.lastName}` : '—'
-                    return (
-                      <tr key={taskId}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '')}
-                      >
-                        <td style={TD}><span style={font(12, 500)}>{learnerName}</span></td>
-                        <td style={TD}>{fmtDate(task.createdAt)}</td>
-                        <td style={{ ...TD, maxWidth: 280 }}>
-                          <a
-                            href="#"
-                            onClick={e => e.preventDefault()}
-                            style={{
-                              color: overdue ? '#E53935' : '#3b5bdb',
-                              fontWeight: overdue ? 600 : 400,
-                              textDecoration: 'none', cursor: 'pointer'
-                            }}
-                          >
-                            {task.title}
-                          </a>
-                        </td>
-                        <td style={TD}>{fmtDate(task.dueDate)}</td>
-                        <td style={TD}>—</td>
-                        <td style={TD}><StatusBadge status={task.status} /></td>
-                        <td style={{ ...TD, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
+                  ) : (
+                    filtered.map((t) => {
+                      const taskId = t._id || (t as any).id
+                      const isComplete = ['COMPLETED', 'complete', 'approved'].includes(t.status?.toLowerCase())
+                      const learner = t.assignedTo ?? t.createdBy
+                      const learnerName = learner ? `${learner.firstName} ${learner.lastName}` : '—'
+                      return (
+                        <tr key={taskId} style={{ borderBottom: '1px solid rgba(28,28,28,0.1)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(28,28,28,0.01)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '')}
+                        >
+                          <TD>
+                            <span style={font(13, 500)}>{learnerName}</span>
+                          </TD>
+                          <TD>
+                            <span style={font(14, 400, '#1c1c1c', { lineHeight: '18px' })}>{formatDate(t.createdAt)}</span>
+                          </TD>
+                          <TD align="center">
+                            <span style={font(14, 400, '#1c1c1c', { lineHeight: '18px', cursor: 'default' })}>
+                              {t.title}
+                            </span>
+                          </TD>
+                          <TD align="center">
+                            <span style={font(14, 400, '#1c1c1c')}>{t.dueDate ? formatDate(t.dueDate) : '—'}</span>
+                          </TD>
+                          <TD align="center">
+                            <span style={font(14, 400, '#1c1c1c')}>
+                              {isComplete && t.updatedAt ? formatDate(t.updatedAt) : '—'}
+                            </span>
+                          </TD>
+                          <td style={{ padding: '8px 12px 8px 16px', verticalAlign: 'middle', height: '40px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <StatusLabel status={t.status} />
+                            </div>
+                          </td>
+                          <TD>
                             <button
-                              onClick={() => handleReassignClick(task)}
+                              onClick={() => router.push(`/trainer-dashboard/tasks/${taskId}`)}
                               style={{
-                                padding: '6px 12px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 4,
-                                cursor: 'pointer', ...font(11, 500, '#fff'), transition: 'all 0.2s'
+                                ...font(14, 400, '#fff', { lineHeight: '20px' }),
+                                backgroundColor: '#000', border: 'none', borderRadius: '16px',
+                                padding: '0 10px', height: '24px', cursor: 'pointer',
+                                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center',
                               }}
                             >
-                              Reassign task
+                              More Details
                             </button>
-                            <button
-                              onClick={() => handleHideTask(taskId)}
-                              style={{
-                                padding: '6px 12px', background: 'transparent', color: '#666',
-                                border: '1px solid rgba(28,28,28,0.15)', borderRadius: 4,
-                                cursor: 'pointer', ...font(11, 500, '#666'), transition: 'all 0.2s'
-                              }}
-                            >
-                              Hide
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-            </tbody>
-          </table>
+                          </TD>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Reassign Modal */}
-      <ReassignModal
-        isOpen={reassignModal.isOpen}
-        task={reassignModal.task}
-        onClose={() => setReassignModal({ isOpen: false, task: null })}
-      />
     </div>
   )
 }
 
-export default function TasksPage() {
+export default function TrainerTasksPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>Loading tasks…</div>}>
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Loading tasks…</div>}>
       <TasksInner />
     </Suspense>
   )
