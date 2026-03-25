@@ -2,6 +2,8 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/api-client'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -36,8 +38,29 @@ const SECTIONS = [
 
 function CreateScorecardInner() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+
+  const createScorecard = async (submit: boolean) => {
+    const token = (session?.user as any)?.accessToken
+    if (!token) return
+    setSaving(true)
+    try {
+      const resp = await apiFetch<any>('/scorecard', token, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      const id = resp?.data?._id
+      if (id) router.push(`/scorecard/${id}`)
+      else router.push('/scorecard')
+    } catch (err) {
+      console.error('Failed to create scorecard:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const toggleSection = (id: string) => setExpandedSections(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleItem = (id: string) => setExpandedItems(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -138,14 +161,18 @@ function CreateScorecardInner() {
             Cancel
           </button>
           <button
-            style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}
+            onClick={() => createScorecard(false)}
+            disabled={saving}
+            style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff'), opacity: saving ? 0.6 : 1 }}
           >
-            Save &amp; Quit
+            {saving ? 'Saving…' : 'Save & Quit'}
           </button>
           <button
-            style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}
+            onClick={() => createScorecard(true)}
+            disabled={saving}
+            style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff'), opacity: saving ? 0.6 : 1 }}
           >
-            Submit Scorecard
+            {saving ? 'Saving…' : 'Submit Scorecard'}
           </button>
         </div>
       </div>

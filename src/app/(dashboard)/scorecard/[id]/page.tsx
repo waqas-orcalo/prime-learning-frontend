@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/api-client'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -25,7 +27,7 @@ const SECTIONS = [
       {
         id: '1', label: '1. IT',
         criteria: [
-          '1.1a- Skilled in the use of multiple IT packages and systems relevant to the organization in order to:',
+          '1.1a - Skilled in the use of multiple IT packages and systems relevant to the organization in order to:',
           '1.1b - Create proposals',
           '1.1c - Perform financial processes',
           '1.1d - Record and analyse data',
@@ -37,19 +39,44 @@ const SECTIONS = [
       {
         id: '2', label: '2. Record and Document Production',
         criteria: [
-          '1.1a- Skilled in the use of multiple IT packages and systems relevant to the organization in order to:',
-          '1.1b - Create proposals',
-          '1.1c - Perform financial processes',
-          '1.1d - Record and analyse data',
-          '1.2 - Examples include ms office or equivalent packages',
-          '1.3 - Able to choose the most appropriate IT solution to suit the business problem',
-          '1.4 - Able to update and review databases, record information and produce data analysis where required',
+          '2.1a - Produces accurate records and documents',
+          '2.1b - Follows procedures for creation and storage of records',
+          '2.2 - Uses appropriate software to produce documents',
+        ]
+      },
+      {
+        id: '3', label: '3. Decision Making',
+        criteria: [
+          '3.1 - Exercises proactivity and good judgement',
+          '3.2 - Identifies and coordinates solutions to problems',
         ]
       },
     ]
   },
-  { id: 'knowledge', label: 'Knowledge', expanded: false, subSections: [] },
-  { id: 'behaviours', label: 'Behaviours', expanded: false, subSections: [] },
+  {
+    id: 'knowledge', label: 'Knowledge', expanded: false,
+    subSections: [
+      {
+        id: 'k1', label: 'K1. Organisational Purpose',
+        criteria: [
+          'K1.1 - Understands organisational purpose and its culture',
+          'K1.2 - Business aims and objectives',
+        ]
+      },
+    ]
+  },
+  {
+    id: 'behaviours', label: 'Behaviours', expanded: false,
+    subSections: [
+      {
+        id: 'b1', label: 'B1. Professional',
+        criteria: [
+          'B1.1 - Acts professionally at all times',
+          'B1.2 - Manages self effectively',
+        ]
+      },
+    ]
+  },
 ]
 
 function StarRating({ value, onChange, previous }: { value: number; onChange: (v: number) => void; previous?: number }) {
@@ -82,11 +109,86 @@ function ScoreEntryInner() {
   const router = useRouter()
   const params = useParams()
   const id = params?.id as string
+  const { data: session } = useSession()
 
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['skills']))
-  const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set(['1', '2']))
+  const [expandedSubSections, setExpandedSubSections] = useState<Set<string>>(new Set(['1', '2', '3', 'k1', 'b1']))
   const [scores, setScores] = useState<Record<string, number>>({})
+  const [previousScores, setPreviousScores] = useState<Record<string, number>>({})
+  const [scorecardTitle, setScorecardTitle] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
   const [changed, setChanged] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Load existing scorecard data
+  useEffect(() => {
+    const token = (session?.user as any)?.accessToken
+    if (!token || !id) return
+    apiFetch<any>(`/scorecard/${id}`, token)
+      .then(resp => {
+        const sc = resp?.data
+        if (!sc) return
+        setScorecardTitle(sc.title || '')
+        setIsSubmitted(sc.submitted || false)
+        // Restore saved scores
+        const savedScores: Record<string, number> = {}
+        const prevScores: Record<string, number> = {}
+        ;(sc.scores ?? []).forEach((entry: any) => {
+          savedScores[entry.criterionKey] = entry.currentScore
+          prevScores[entry.criterionKey] = entry.previousScore
+        })
+        setScores(savedScores)
+        setPreviousScores(prevScores)
+      })
+      .catch(err => console.error('Failed to load scorecard:', err))
+  }, [id, session])
+
+  const saveScores = async () => {
+    const token = (session?.user as any)?.accessToken
+    if (!token) return
+    setSaving(true)
+    // Build scores array from current state
+    const scoresArray = Object.entries(scores).map(([key, currentScore]) => {
+      // Parse key: "subSectionId-criterionIndex"
+      const [subSection, ciStr] = key.split('-')
+      // Find section for this subSection
+      const section = SECTIONS.find(s => s.subSections.some(ss => ss.id === subSection))
+      const sub = section?.subSections.find(ss => ss.id === subSection)
+      const criterionLabel = sub?.criteria[parseInt(ciStr)] ?? key
+      return {
+        criterionKey: key,
+        criterionLabel,
+        section: section?.id ?? '',
+        subSection,
+        previousScore: previousScores[key] ?? 0,
+        currentScore,
+      }
+    })
+    try {
+      await apiFetch(`/scorecard/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ scores: scoresArray }),
+      })
+      setChanged(false)
+    } catch (err) {
+      console.error('Failed to save scores:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const submitScorecard = async () => {
+    await saveScores()
+    const token = (session?.user as any)?.accessToken
+    if (!token) return
+    try {
+      await apiFetch(`/scorecard/${id}/submit`, token, { method: 'POST' })
+      setIsSubmitted(true)
+      router.push('/scorecard')
+    } catch (err) {
+      console.error('Failed to submit:', err)
+    }
+  }
 
   const toggleSection = (id: string) => setExpandedSections(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const toggleSubSection = (id: string) => setExpandedSubSections(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -123,7 +225,7 @@ function ScoreEntryInner() {
             <img src={iconBack} width={24} height={24} alt="Back" />
           </button>
           <div>
-            <p style={{ ...font(14, 600), margin: 0 }}>Scorecard {id || '2'}</p>
+            <p style={{ ...font(14, 600), margin: 0 }}>{scorecardTitle || `Scorecard ${id}`}</p>
             <p style={{ ...font(12, 400, '#888'), margin: 0 }}>
               The current scores have been copied from the previous scorecard. Criteria with new journal entries will be highlighted
             </p>
@@ -185,8 +287,14 @@ function ScoreEntryInner() {
                               <span style={{ ...font(12), lineHeight: '18px', paddingRight: 16 }}>{c}</span>
                               {/* Previous score */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                                <span style={{ color: '#10b981', fontSize: 14 }}>★</span>
-                                <span style={font(12, 500)}>9.00</span>
+                                {previousScores[key] ? (
+                                  <>
+                                    <span style={{ color: '#10b981', fontSize: 14 }}>★</span>
+                                    <span style={font(12, 500)}>{previousScores[key].toFixed(2)}</span>
+                                  </>
+                                ) : (
+                                  <span style={font(12, 400, '#aaa')}>—</span>
+                                )}
                               </div>
                               {/* Current score */}
                               <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -225,11 +333,15 @@ function ScoreEntryInner() {
               style={{ padding: '8px 16px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(12, 500) }}
             >Cancel</button>
             <button
-              style={{ padding: '8px 16px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(12, 500, '#fff') }}
-            >Save &amp; Quit</button>
+              onClick={async () => { await saveScores(); router.push('/scorecard') }}
+              disabled={saving || isSubmitted}
+              style={{ padding: '8px 16px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(12, 500, '#fff'), opacity: saving || isSubmitted ? 0.6 : 1 }}
+            >{saving ? 'Saving…' : 'Save & Quit'}</button>
             <button
-              style={{ padding: '8px 16px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(12, 500, '#fff') }}
-            >Submit Scorecard</button>
+              onClick={submitScorecard}
+              disabled={saving || isSubmitted}
+              style={{ padding: '8px 16px', background: isSubmitted ? '#22c55e' : '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(12, 500, '#fff'), opacity: saving ? 0.6 : 1 }}
+            >{isSubmitted ? '✓ Submitted' : saving ? 'Submitting…' : 'Submit Scorecard'}</button>
           </div>
         </div>
       </div>

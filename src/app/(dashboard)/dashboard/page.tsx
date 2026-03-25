@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconQuestion = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5" fill="none"/><text x="16" y="22" text-anchor="middle" font-family="Inter,sans-serif" font-size="18" font-weight="600" fill="#1c1c1c">?</text></svg>`)
@@ -195,12 +196,14 @@ const INFO_CARDS = [
 export default function DashboardPage() {
   const router = useRouter()
   const [mainTab, setMainTab] = useState('Activity')
+  const { data: session } = useSession()
+  const firstName = (session?.user as any)?.firstName || 'there'
 
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '16px' }}>
-          <h1 style={{ ...font(30, 700, '#000'), margin: 0, letterSpacing: '-0.6px', lineHeight: '40px' }}>Welcome John</h1>
+          <h1 style={{ ...font(30, 700, '#000'), margin: 0, letterSpacing: '-0.6px', lineHeight: '40px' }}>Welcome {firstName}</h1>
           <img src={iconQuestion} alt="?" style={{ width: '32px', height: '32px', cursor: 'pointer' }} />
         </div>
         <p style={{ ...font(16, 400, '#000'), margin: 0, letterSpacing: '-0.32px' }}>
@@ -328,3 +331,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+// dashboard-timestamp: 1774401032

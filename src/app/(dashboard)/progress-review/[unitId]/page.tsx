@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
@@ -44,9 +45,11 @@ const TOOLBAR_BUTTONS = [
 function ProgressUnitDetailsInner() {
   const router = useRouter()
   const params = useParams()
+  const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState(0)
   const [selectedUnit, setSelectedUnit] = useState(1)
   const [comment, setComment] = useState('')
+  const learnerName = [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ') || 'Learner'
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1060, ...FF }}>
@@ -102,7 +105,7 @@ function ProgressUnitDetailsInner() {
           {/* Meta row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
-              { label: 'Learner Name', value: 'John doe' },
+              { label: 'Learner Name', value: learnerName },
               { label: 'Learning Aim', value: 'Business Administrator Gateway to End Point' },
               { label: 'Awarding Body Reg.', value: 'Pending' },
             ].map(({ label, value }) => (
@@ -148,7 +151,7 @@ function ProgressUnitDetailsInner() {
             <h4 style={{ ...font(13, 600), margin: '0 0 12px' }}>Feedback &amp; Comments</h4>
             <div style={{ padding: '10px 0', borderTop: '1px solid rgba(28,28,28,0.07)', marginBottom: 12 }}>
               <p style={{ ...font(12, 400, '#555'), margin: '0 0 4px' }}>
-                From: Tahmidul Hassan (Trainer) on 10/02/2025 19:49 To: John doe (Learner) Unread
+                {`From: Tahmidul Hassan (Trainer) on 10/02/2025 19:49 To: ${learnerName} (Learner) Unread`}
               </p>
               <p style={{ ...font(13), margin: 0 }}>Good job</p>
             </div>
@@ -205,3 +208,4 @@ function ProgressUnitDetailsInner() {
 export default function Page() {
   return <Suspense><ProgressUnitDetailsInner /></Suspense>
 }
+// progress-timestamp: 1774401037

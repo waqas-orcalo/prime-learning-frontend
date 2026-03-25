@@ -49,7 +49,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14, outline: 'none', width: '100%',
 }
 
-type Page = 'dashboard' | 'users' | 'courses' | 'tasks' | 'assign' | 'logs' | 'settings'
+type Page = 'dashboard' | 'users' | 'courses' | 'tasks' | 'assign' | 'groups' | 'logs' | 'settings'
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 const apiBase = () => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
@@ -165,6 +165,7 @@ const icons: Record<string, React.ReactNode> = {
   assign:    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 17c0-3 2.24-5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M13 11v6m-3-3h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   logs:      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 5h12M4 10h12M4 15h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   settings:  <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  groups:    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="6" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/><circle cx="14" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M1 17c0-2.5 2-4 5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M19 17c0-2.5-2-4-5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M7 17c0-2.761 1.343-5 3-5s3 2.239 3 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   logout:    <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M7 3H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h3M13 14l4-4-4-4M17 10H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
   bell:      <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2a5 5 0 0 1 5 5c0 3.5 1.5 5 1.5 5h-13S5 10.5 5 7a5 5 0 0 1 5-5Z" stroke="currentColor" strokeWidth="1.5"/><path d="M8.27 15a1.75 1.75 0 0 0 3.46 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   search:    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke={MUTED} strokeWidth="1.4"/><path d="M11 11l3 3" stroke={MUTED} strokeWidth="1.4" strokeLinecap="round"/></svg>,
@@ -523,6 +524,11 @@ function CoursesPage({ token }: { token: string }) {
   const [enrollUsers, setEnrollUsers] = useState<UserRecord[]>([])
   const [selectedEnrollIds, setSelectedEnrollIds] = useState<string[]>([])
   const [enrolling, setEnrolling]   = useState(false)
+  // Group enrollment
+  const [enrollGroupModal, setEnrollGroupModal] = useState<CourseRecord | null>(null)
+  const [enrollGroups, setEnrollGroups] = useState<{ _id: string; name: string; members: any[] }[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('')
+  const [enrollingGroup, setEnrollingGroup] = useState(false)
 
   const LIMIT = 12
 
@@ -560,6 +566,16 @@ function CoursesPage({ token }: { token: string }) {
       .then(b => setEnrollUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
       .catch(() => {})
   }, [enrollModal, enrollSearch, token])
+
+  // Load groups for group-enroll modal
+  useEffect(() => {
+    if (!enrollGroupModal) return
+    setSelectedGroupId('')
+    apiFetch(`${apiBase()}/groups`, token)
+      .then(r => r.json())
+      .then(b => setEnrollGroups(Array.isArray(b?.data) ? b.data : []))
+      .catch(() => {})
+  }, [enrollGroupModal, token])
 
   const openCreate = () => {
     setForm({ title: '', description: '', category: '', duration: '', status: 'DRAFT', thumbnailEmoji: '📘' })
@@ -622,6 +638,20 @@ function CoursesPage({ token }: { token: string }) {
     } catch { setError('Enroll failed') } finally { setEnrolling(false) }
   }
 
+  const handleEnrollGroup = async () => {
+    if (!enrollGroupModal || !selectedGroupId) return
+    setEnrollingGroup(true)
+    try {
+      const res = await apiFetch(`${apiBase()}/courses/${enrollGroupModal._id}/enroll-group`, token, {
+        method: 'POST', body: JSON.stringify({ groupId: selectedGroupId }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.message ?? 'Group enroll failed')
+      setEnrollGroupModal(null); setSelectedGroupId(''); load()
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Group enroll failed') }
+    finally { setEnrollingGroup(false) }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -675,6 +705,8 @@ function CoursesPage({ token }: { token: string }) {
                       )}
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                         onClick={() => setEnrollModal(c)}>Enroll</button>
+                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
+                        onClick={() => setEnrollGroupModal(c)}>Group</button>
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
                         onClick={() => openEdit(c)}>Edit</button>
                       <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: RED }}
@@ -846,6 +878,50 @@ function CoursesPage({ token }: { token: string }) {
             <button style={btn()} onClick={() => setEnrollModal(null)}>Cancel</button>
             <button style={btn(true)} onClick={handleEnroll} disabled={enrolling || selectedEnrollIds.length === 0}>
               {enrolling ? 'Enrolling…' : `Enroll ${selectedEnrollIds.length} User${selectedEnrollIds.length !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Enroll by Group Modal */}
+      {enrollGroupModal && (
+        <Modal title={`Assign to Group — ${enrollGroupModal.title}`} onClose={() => setEnrollGroupModal(null)}>
+          <div style={{ ...font(13, 400, MUTED), marginBottom: 14 }}>
+            Select a group to enroll all its members in this course.
+          </div>
+          {enrollGroups.length === 0 ? (
+            <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: '20px 0' }}>
+              No groups found. Create a group first in Group Management.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
+              {enrollGroups.map(g => {
+                const isSelected = selectedGroupId === g._id
+                return (
+                  <div key={g._id} onClick={() => setSelectedGroupId(g._id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                      borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${isSelected ? INDIGO : '#e0e0e8'}`,
+                      background: isSelected ? 'rgba(108,99,255,0.06)' : '#fff', transition: 'all 0.15s' }}>
+                    <input type="radio" readOnly checked={isSelected} style={{ accentColor: INDIGO, cursor: 'pointer' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ ...font(14, 600, NAVY) }}>{g.name}</div>
+                      <div style={{ ...font(12, 400, MUTED) }}>{g.members?.length ?? 0} member{(g.members?.length ?? 0) !== 1 ? 's' : ''}</div>
+                    </div>
+                    {isSelected && (
+                      <div style={{ ...font(11, 600, INDIGO) }}>✓ Selected</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button style={btn()} onClick={() => setEnrollGroupModal(null)}>Cancel</button>
+            <button style={btn(true)} onClick={handleEnrollGroup}
+              disabled={enrollingGroup || !selectedGroupId}>
+              {enrollingGroup ? 'Enrolling…' : selectedGroupId
+                ? `Enroll Group (${enrollGroups.find(g => g._id === selectedGroupId)?.members?.length ?? 0} members)`
+                : 'Select a Group'}
             </button>
           </div>
         </Modal>
@@ -1396,6 +1472,311 @@ function AssignPage({ token }: { token: string }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GROUPS PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+interface GroupMember { _id: string; firstName: string; lastName: string; email: string; role: string }
+interface GroupRecord { _id: string; name: string; description: string; members: GroupMember[]; createdAt?: string }
+
+function GroupsPage({ token }: { token: string }) {
+  const [groups, setGroups]           = useState<GroupRecord[]>([])
+  const [allUsers, setAllUsers]       = useState<UserRecord[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [showCreate, setShowCreate]   = useState(false)
+  const [editGroup, setEditGroup]     = useState<GroupRecord | null>(null)
+  const [viewGroup, setViewGroup]     = useState<GroupRecord | null>(null)
+  const [saving, setSaving]           = useState(false)
+  const [newName, setNewName]         = useState('')
+  const [newDesc, setNewDesc]         = useState('')
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [memberSearch, setMemberSearch] = useState('')
+  const [addMemberMode, setAddMemberMode] = useState(false)
+  const [addSearch, setAddSearch]     = useState('')
+
+  const load = () => {
+    setLoading(true)
+    apiFetch<any>(`${apiBase()}/groups`, token)
+      .then(r => r.json()).then(b => setGroups(Array.isArray(b?.data) ? b.data : []))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    apiFetch<any>(`${apiBase()}/users?limit=200`, token)
+      .then(r => r.json())
+      .then(b => setAllUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  const openCreate = () => {
+    setNewName(''); setNewDesc(''); setSelectedUserIds(new Set())
+    setEditGroup(null); setShowCreate(true)
+  }
+
+  const openEdit = (g: GroupRecord) => {
+    setNewName(g.name); setNewDesc(g.description)
+    setSelectedUserIds(new Set(g.members.map(m => String(m._id))))
+    setEditGroup(g); setShowCreate(true)
+  }
+
+  const toggleUser = (id: string) => {
+    setSelectedUserIds(prev => {
+      const s = new Set(prev)
+      s.has(id) ? s.delete(id) : s.add(id)
+      return s
+    })
+  }
+
+  const saveGroup = async () => {
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      const memberIds = Array.from(selectedUserIds)
+      if (editGroup) {
+        // Update name/desc
+        await apiFetch(`${apiBase()}/groups/${editGroup._id}`, token, {
+          method: 'PATCH', body: JSON.stringify({ name: newName, description: newDesc }),
+        })
+        // Sync members: add new ones, remove removed ones
+        const existing = new Set(editGroup.members.map(m => String(m._id)))
+        const toAdd    = memberIds.filter(id => !existing.has(id))
+        const toRemove = editGroup.members.map(m => String(m._id)).filter(id => !selectedUserIds.has(id))
+        if (toAdd.length)    await apiFetch(`${apiBase()}/groups/${editGroup._id}/members`, token, { method: 'POST',   body: JSON.stringify({ memberIds: toAdd }) })
+        if (toRemove.length) await apiFetch(`${apiBase()}/groups/${editGroup._id}/members`, token, { method: 'DELETE', body: JSON.stringify({ memberIds: toRemove }) })
+      } else {
+        await apiFetch(`${apiBase()}/groups`, token, {
+          method: 'POST', body: JSON.stringify({ name: newName, description: newDesc, memberIds }),
+        })
+      }
+      setShowCreate(false); load()
+    } finally { setSaving(false) }
+  }
+
+  const deleteGroup = async (id: string) => {
+    if (!confirm('Delete this group?')) return
+    await apiFetch(`${apiBase()}/groups/${id}`, token, { method: 'DELETE' })
+    load()
+  }
+
+  const removeMemberFromView = async (groupId: string, memberId: string) => {
+    await apiFetch(`${apiBase()}/groups/${groupId}/members`, token, {
+      method: 'DELETE', body: JSON.stringify({ memberIds: [memberId] }),
+    })
+    const updated = await apiFetch<any>(`${apiBase()}/groups/${groupId}`, token).then(r => r.json())
+    setViewGroup(updated?.data ?? null)
+    load()
+  }
+
+  const addMembersToView = async (groupId: string, ids: string[]) => {
+    await apiFetch(`${apiBase()}/groups/${groupId}/members`, token, {
+      method: 'POST', body: JSON.stringify({ memberIds: ids }),
+    })
+    const updated = await apiFetch<any>(`${apiBase()}/groups/${groupId}`, token).then(r => r.json())
+    setViewGroup(updated?.data ?? null)
+    setAddMemberMode(false); setAddSearch('')
+    load()
+  }
+
+  // Merge populate data with allUsers so names always resolve correctly
+  const resolveUser = (m: GroupMember): GroupMember => {
+    const full = allUsers.find(u => u._id === String(m._id))
+    return full ? { ...m, firstName: full.firstName, lastName: full.lastName, email: full.email, role: full.role } : m
+  }
+
+  const filteredUsers = allUsers.filter(u => {
+    const q = memberSearch.toLowerCase()
+    return `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(q)
+  })
+
+  return (
+    <div style={{ padding: '0 4px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ ...font(22, 700, NAVY) }}>Group Management</div>
+          <div style={{ ...font(13, 400, MUTED), marginTop: 2 }}>Create and manage user groups</div>
+        </div>
+        <button style={btn(true)} onClick={openCreate}>
+          {icons.plus}&nbsp;New Group
+        </button>
+      </div>
+
+      {/* Groups grid */}
+      {loading ? (
+        <div style={{ ...font(14, 400, MUTED), textAlign: 'center', padding: 40 }}>Loading…</div>
+      ) : groups.length === 0 ? (
+        <div style={{ ...card, textAlign: 'center', padding: 48 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+          <div style={{ ...font(16, 600, NAVY), marginBottom: 6 }}>No groups yet</div>
+          <div style={{ ...font(13, 400, MUTED), marginBottom: 16 }}>Create a group to organise users together</div>
+          <button style={btn(true)} onClick={openCreate}>Create first group</button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          {groups.map(g => (
+            <div key={g._id} style={{ ...card, cursor: 'default' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(108,99,255,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: INDIGO, flexShrink: 0 }}>
+                    {icons.groups}
+                  </div>
+                  <div>
+                    <div style={{ ...font(15, 600, NAVY) }}>{g.name}</div>
+                    <div style={{ ...font(12, 400, MUTED) }}>{g.members.length} member{g.members.length !== 1 ? 's' : ''}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={btn()} onClick={() => openEdit(g)} title="Edit">✏️</button>
+                  <button style={dangerBtn} onClick={() => deleteGroup(g._id)} title="Delete">🗑️</button>
+                </div>
+              </div>
+              {g.description && (
+                <div style={{ ...font(12, 400, MUTED), marginBottom: 10, lineHeight: 1.5 }}>{g.description}</div>
+              )}
+              {/* Member avatars */}
+              <Divider />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: -6 }}>
+                  {g.members.slice(0, 5).map(m => {
+                    const rm = resolveUser(m)
+                    return (
+                    <div key={rm._id} title={`${rm.firstName ?? ''} ${rm.lastName ?? ''}`}
+                      style={{ marginLeft: -6, border: '2px solid #fff', borderRadius: '50%' }}>
+                      <Avatar initials={`${(rm.firstName||'?')[0]}${(rm.lastName||'?')[0]}`} size={28} />
+                    </div>
+                  )}
+                  )}
+                  {g.members.length > 5 && (
+                    <div style={{ marginLeft: -6, border: '2px solid #fff', borderRadius: '50%',
+                      width: 28, height: 28, background: '#e8e8ed', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', ...font(10, 600, MUTED) }}>
+                      +{g.members.length - 5}
+                    </div>
+                  )}
+                </div>
+                <button style={{ ...btn(), fontSize: 12 }} onClick={() => { setViewGroup(g); setAddMemberMode(false); setAddSearch(''); setMemberSearch('') }}>
+                  View members
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create / Edit Modal */}
+      {showCreate && (
+        <Modal title={editGroup ? `Edit Group — ${editGroup.name}` : 'Create New Group'} onClose={() => setShowCreate(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div style={{ ...font(12, 500, MUTED), marginBottom: 4 }}>Group Name *</div>
+              <input style={inputStyle} value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Engineering Team" />
+            </div>
+            <div>
+              <div style={{ ...font(12, 500, MUTED), marginBottom: 4 }}>Description</div>
+              <textarea style={{ ...inputStyle, height: 72, resize: 'vertical' } as React.CSSProperties}
+                value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional description…" />
+            </div>
+            <div>
+              <div style={{ ...font(12, 500, MUTED), marginBottom: 6 }}>
+                Members ({selectedUserIds.size} selected)
+              </div>
+              <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Search users…"
+                value={memberSearch} onChange={e => setMemberSearch(e.target.value)} />
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: BORDER, borderRadius: 10 }}>
+                {filteredUsers.map(u => {
+                  const checked = selectedUserIds.has(u._id)
+                  return (
+                    <div key={u._id} onClick={() => toggleUser(u._id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                        cursor: 'pointer', borderBottom: BORDER,
+                        background: checked ? 'rgba(108,99,255,0.06)' : 'transparent' }}>
+                      <input type="checkbox" readOnly checked={checked} style={{ accentColor: INDIGO }} />
+                      <Avatar initials={`${(u.firstName||'?')[0]}${(u.lastName||'?')[0]}`} size={28} />
+                      <div>
+                        <div style={{ ...font(13, 500, NAVY) }}>{u.firstName ?? ''} {u.lastName ?? ''}</div>
+                        <div style={{ ...font(11, 400, MUTED) }}>{u.email}</div>
+                      </div>
+                      <div style={{ marginLeft: 'auto' }}>{roleBadge(u.role)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button style={btn()} onClick={() => setShowCreate(false)}>Cancel</button>
+              <button style={btn(true)} onClick={saveGroup} disabled={saving || !newName.trim()}>
+                {saving ? 'Saving…' : editGroup ? 'Save Changes' : 'Create Group'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* View Members Modal */}
+      {viewGroup && (
+        <Modal title={`${viewGroup.name} — Members`} onClose={() => setViewGroup(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ ...font(13, 400, MUTED) }}>{viewGroup.members.length} member{viewGroup.members.length !== 1 ? 's' : ''}</div>
+              <button style={btn(true)} onClick={() => setAddMemberMode(v => !v)}>
+                {addMemberMode ? 'Cancel' : '+ Add Members'}
+              </button>
+            </div>
+
+            {addMemberMode && (
+              <div style={{ border: BORDER, borderRadius: 10, padding: 12, background: 'rgba(108,99,255,0.04)' }}>
+                <input style={{ ...inputStyle, marginBottom: 8 }} placeholder="Search users to add…"
+                  value={addSearch} onChange={e => setAddSearch(e.target.value)} />
+                <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                  {allUsers
+                    .filter(u => !viewGroup.members.find(m => String(m._id) === u._id))
+                    .filter(u => `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(addSearch.toLowerCase()))
+                    .map(u => (
+                      <div key={u._id}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
+                          borderBottom: BORDER, cursor: 'pointer' }}
+                        onClick={() => addMembersToView(viewGroup._id, [u._id])}>
+                        <Avatar initials={`${(u.firstName||'?')[0]}${(u.lastName||'?')[0]}`} size={26} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ ...font(13, 500, NAVY) }}>{u.firstName ?? ''} {u.lastName ?? ''}</div>
+                          <div style={{ ...font(11, 400, MUTED) }}>{u.email}</div>
+                        </div>
+                        <button style={{ ...btn(true), fontSize: 11, padding: '4px 8px' }}>Add</button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              {viewGroup.members.length === 0 ? (
+                <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: 24 }}>No members yet</div>
+              ) : viewGroup.members.map(m => {
+                const rm = resolveUser(m)
+                return (
+                <div key={rm._id} style={{ display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 0', borderBottom: BORDER }}>
+                  <Avatar initials={`${(rm.firstName||'?')[0]}${(rm.lastName||'?')[0]}`} size={32} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...font(13, 500, NAVY) }}>{rm.firstName ?? ''} {rm.lastName ?? ''}</div>
+                    <div style={{ ...font(11, 400, MUTED) }}>{rm.email}</div>
+                  </div>
+                  {roleBadge(rm.role)}
+                  <button style={{ ...dangerBtn, padding: '4px 8px', fontSize: 11 }}
+                    onClick={() => removeMemberFromView(viewGroup._id, rm._id)}>
+                    Remove
+                  </button>
+                </div>
+              )})}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // LOGS PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 interface LogRecord {
@@ -1667,7 +2048,8 @@ export default function AdminPage() {
 
   const PAGE_TITLES: Record<Page, string> = {
     dashboard: 'Dashboard', users: 'User Management', courses: 'Course Management',
-    tasks: 'Task Management', assign: 'Assign Tasks', logs: 'Activity Logs', settings: 'Settings',
+    tasks: 'Task Management', assign: 'Assign Tasks', groups: 'Group Management',
+    logs: 'Activity Logs', settings: 'Settings',
   }
 
   const NAV: { id: Page; label: string }[] = [
@@ -1676,6 +2058,7 @@ export default function AdminPage() {
     { id: 'courses',   label: 'Courses' },
     { id: 'tasks',     label: 'Tasks' },
     { id: 'assign',    label: 'Assign Tasks' },
+    { id: 'groups',    label: 'Groups' },
     { id: 'logs',      label: 'Activity Logs' },
     { id: 'settings',  label: 'Settings' },
   ]
@@ -1722,7 +2105,7 @@ export default function AdminPage() {
 
           <div style={{ ...font(11, 400, 'rgba(28,28,28,0.40)'), padding: '4px 12px',
             textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 8 }}>Manage</div>
-          {(['users','courses','tasks','assign'] as Page[]).map(id => (
+          {(['users','courses','tasks','assign','groups'] as Page[]).map(id => (
             <NavItem key={id} id={id} active={activePage === id} onClick={setActivePage}
               icon={icons[id]} label={NAV.find(n => n.id === id)?.label ?? id} />
           ))}
@@ -1775,6 +2158,7 @@ export default function AdminPage() {
             {activePage === 'courses'   && <CoursesPage   token={token} />}
             {activePage === 'tasks'     && <TasksPage     token={token} />}
             {activePage === 'assign'    && <AssignPage    token={token} />}
+            {activePage === 'groups'    && <GroupsPage    token={token} />}
             {activePage === 'logs'      && <LogsPage      token={token} />}
             {activePage === 'settings'  && <SettingsPage />}
           </div>

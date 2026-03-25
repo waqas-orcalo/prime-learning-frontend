@@ -23,7 +23,7 @@ const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSPro
   ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra } as React.CSSProperties)
 
 /* ── Types ── */
-type Tab = 'Evidence' | 'Feedback & Comments' | 'Visit' | 'Leaning Journals' | 'Declaration & Signatures'
+type Tab = 'Evidence' | 'Feedback & Comments' | 'Visit' | 'Learning Journals' | 'Declaration & Signatures'
 
 interface CriterionItem {
   id: string
@@ -208,7 +208,7 @@ function SetCriteriaModal({ criteria, onChange, onClose, activityId, token }: {
 
 /* ── Sidebar ── */
 function Sidebar({ activeTab, onTabChange }: { activeTab: Tab; onTabChange: (t: Tab) => void }) {
-  const tabs: Tab[] = ['Evidence', 'Feedback & Comments', 'Visit', 'Leaning Journals', 'Declaration & Signatures']
+  const tabs: Tab[] = ['Evidence', 'Feedback & Comments', 'Visit', 'Learning Journals', 'Declaration & Signatures']
   return (
     <div style={{ width: '260px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 6px rgba(13,10,44,0.08)', padding: '16px' }}>
       <div style={{ ...font(15, 700), marginBottom: '10px' }}>Information &amp; Options</div>
@@ -233,7 +233,7 @@ function Sidebar({ activeTab, onTabChange }: { activeTab: Tab; onTabChange: (t: 
 }
 
 /* ── Tab: Evidence ── */
-function TabEvidence({ data, onChange, activityId, token }: { data: { content: string; attachments: Attachment[]; toolbarActive: string[], evidenceId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined }) {
+function TabEvidence({ data, onChange, activityId, token, onQuit }: { data: { content: string; attachments: Attachment[]; toolbarActive: string[], evidenceId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -314,7 +314,7 @@ function TabEvidence({ data, onChange, activityId, token }: { data: { content: s
           }} />
         </label>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
+          <button onClick={async () => { await handleSave(); onQuit?.() }} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
           <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>
             {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
           </button>
@@ -326,7 +326,7 @@ function TabEvidence({ data, onChange, activityId, token }: { data: { content: s
 }
 
 /* ── Tab: Feedback ── */
-function TabFeedback({ data, onChange, activityId, token }: { data: { content: string; toolbarActive: string[]; feedbackId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined }) {
+function TabFeedback({ data, onChange, activityId, token, onQuit }: { data: { content: string; toolbarActive: string[]; feedbackId: string }; onChange: (d: any) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -371,7 +371,7 @@ function TabFeedback({ data, onChange, activityId, token }: { data: { content: s
         <Toolbar active={data.toolbarActive} onToggle={k => onChange({ ...data, toolbarActive: data.toolbarActive.includes(k) ? data.toolbarActive.filter((x: string) => x !== k) : [...data.toolbarActive, k] })} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-        <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
+        <button onClick={async () => { await handleSave(); onQuit?.() }} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
         <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}</button>
         <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 12px', ...font(13, 500) }}>Cancel</button>
       </div>
@@ -381,7 +381,7 @@ function TabFeedback({ data, onChange, activityId, token }: { data: { content: s
 
 /* ── Tab: Visit ── */
 interface VisitData { visitType: string; travelTime: string; notes: string; visitId: string }
-function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onChange: (d: VisitData) => void; activityId: string; token: string | undefined }) {
+function TabVisit({ data, onChange, activityId, token, onQuit }: { data: VisitData; onChange: (d: VisitData) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
   const [typeOpen, setTypeOpen] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -467,7 +467,7 @@ function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onCh
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-        <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
+        <button onClick={async () => { await handleSave(); onQuit?.() }} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
         <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}</button>
         <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 12px', ...font(13, 500) }}>Cancel</button>
       </div>
@@ -475,9 +475,9 @@ function TabVisit({ data, onChange, activityId, token }: { data: VisitData; onCh
   )
 }
 
-/* ── Tab: Leaning Journals ── */
+/* ── Tab: Learning Journals ── */
 interface JournalData { title: string; category: string; date: string; timeHH: string; timeMM: string; amPm: 'AM' | 'PM'; durationHH: string; durationMM: string; offJob: boolean; onJob: boolean; reflection: string; privacy: string; journalId: string }
-function TabJournals({ data, onChange, activityId, token }: { data: JournalData; onChange: (d: JournalData) => void; activityId: string; token: string | undefined }) {
+function TabJournals({ data, onChange, activityId, token, onQuit }: { data: JournalData; onChange: (d: JournalData) => void; activityId: string; token: string | undefined; onQuit?: () => void }) {
   const [catOpen, setCatOpen] = useState(false)
   const [privOpen, setPrivOpen] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -530,7 +530,7 @@ function TabJournals({ data, onChange, activityId, token }: { data: JournalData;
 
   return (
     <div style={{ padding: '20px' }}>
-      <div style={{ ...font(16, 700), marginBottom: '14px' }}>Leaning Journals</div>
+      <div style={{ ...font(16, 700), marginBottom: '14px' }}>Learning Journals</div>
 
       {/* Title + Category */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -625,7 +625,7 @@ function TabJournals({ data, onChange, activityId, token }: { data: JournalData;
 
 /* ── Tab: Declaration & Signatures ── */
 interface DeclarationData { learner: DeclarationSig; trainer: DeclarationSig; agreed: boolean }
-function TabDeclaration({ data, onChange, activityId, token }: { data: DeclarationData; onChange: (d: DeclarationData) => void; activityId: string; token: string | undefined }) {
+function TabDeclaration({ data, onChange, activityId, token, onQuit, learnerName }: { data: DeclarationData; onChange: (d: DeclarationData) => void; activityId: string; token: string | undefined; onQuit?: () => void; learnerName?: string }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [signingRole, setSigningRole] = useState<'learner' | 'trainer' | null>(null)
@@ -693,7 +693,7 @@ function TabDeclaration({ data, onChange, activityId, token }: { data: Declarati
             </div>
             <p style={{ ...font(12, 400, 'rgba(28,28,28,0.55)', { fontStyle: 'italic' }), marginBottom: '12px', lineHeight: 1.5 }}>I agree that the information provided here is an accurate account of what has taken place.</p>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ ...font(13) }}>{role === 'learner' ? 'John Doe (Learner)' : 'Trainer'}</span>
+              <span style={{ ...font(13) }}>{role === 'learner' ? `${learnerName || 'Learner'} (Learner)` : 'Trainer'}</span>
               {data[role].signedAt
                 ? <span style={{ ...font(12, 500, '#22c55e') }}>✓ Signed {data[role].signedAt}</span>
                 : <button
@@ -715,7 +715,7 @@ function TabDeclaration({ data, onChange, activityId, token }: { data: Declarati
       </label>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-        <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
+        <button onClick={async () => { await handleSave(); onQuit?.() }} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>Save &amp; Quit</button>
         <button onClick={handleSave} disabled={saving} style={{ backgroundColor: saving ? 'rgba(28,28,28,0.4)' : '#1c1c1c', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: saving ? 'not-allowed' : 'pointer', ...font(13, 500, '#fff') }}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}</button>
         <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 12px', ...font(13, 500) }}>Cancel</button>
       </div>
@@ -863,13 +863,16 @@ function EvidencePageInner() {
     load()
   }, [token, activityId])
 
+  const onQuit = () => router.push('/learning-activities')
+  const learnerName = [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ')
+
   const renderTab = () => {
     switch (activeTab) {
-      case 'Evidence': return <TabEvidence data={evidenceData} onChange={setEvidenceData} activityId={activityId} token={token} />
-      case 'Feedback & Comments': return <TabFeedback data={feedbackData} onChange={setFeedbackData} activityId={activityId} token={token} />
-      case 'Visit': return <TabVisit data={visitData} onChange={setVisitData} activityId={activityId} token={token} />
-      case 'Leaning Journals': return <TabJournals data={journalData} onChange={setJournalData} activityId={activityId} token={token} />
-      case 'Declaration & Signatures': return <TabDeclaration data={declarationData} onChange={setDeclarationData} activityId={activityId} token={token} />
+      case 'Evidence': return <TabEvidence data={evidenceData} onChange={setEvidenceData} activityId={activityId} token={token} onQuit={onQuit} />
+      case 'Feedback & Comments': return <TabFeedback data={feedbackData} onChange={setFeedbackData} activityId={activityId} token={token} onQuit={onQuit} />
+      case 'Visit': return <TabVisit data={visitData} onChange={setVisitData} activityId={activityId} token={token} onQuit={onQuit} />
+      case 'Learning Journals': return <TabJournals data={journalData} onChange={setJournalData} activityId={activityId} token={token} onQuit={onQuit} />
+      case 'Declaration & Signatures': return <TabDeclaration data={declarationData} onChange={setDeclarationData} activityId={activityId} token={token} onQuit={onQuit} learnerName={learnerName} />
     }
   }
 
@@ -909,7 +912,7 @@ function EvidencePageInner() {
             <span style={{ ...font(11, 400, 'rgba(28,28,28,0.6)'), display: 'block', marginBottom: '3px' }}>Date</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <img src={iconCal} alt="" style={{ width: '13px', height: '13px', opacity: .6 }} />
-              <span style={{ ...font(14, 500) }}>{activity.date}</span>
+              <span style={{ ...font(14, 500) }}>{activity.activityDate ? new Date(activity.activityDate).toLocaleDateString('en-GB') : activity.date || ''}</span>
             </div>
           </div>
           {/* Title */}

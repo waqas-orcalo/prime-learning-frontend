@@ -398,7 +398,7 @@ export default function TaskDetailPage() {
   if (loading) {
     return (
       <div style={{ padding: '80px', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>
-        Loading activity…
+        Loading task…
       </div>
     )
   }
@@ -420,7 +420,7 @@ export default function TaskDetailPage() {
   if (!task) {
     return (
       <div style={{ padding: '60px', textAlign: 'center', ...font(14, 400, 'rgba(28,28,28,0.4)') }}>
-        Activity not found.
+        Task not found.
       </div>
     )
   }
@@ -546,23 +546,9 @@ export default function TaskDetailPage() {
             <div style={{ flex: 1, paddingLeft: '24px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <span style={font(12, 400, '#000')}>Learning Resources:</span>
-                {/* Placeholder attachment row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {/* PDF icon button */}
-                  <div style={{
-                    width: '24px', height: '24px', borderRadius: '8px',
-                    backgroundColor: '#e5ecf6',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    <PDFIcon />
-                  </div>
-                  <span style={font(14, 400, '#1c1c1c', {
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  })}>
-                    {task.title} documentation.pdf
-                  </span>
-                </div>
+                <span style={font(14, 400, 'rgba(28,28,28,0.4)', { lineHeight: '20px' })}>
+                  No attachments added.
+                </span>
               </div>
             </div>
           </div>
@@ -615,33 +601,23 @@ export default function TaskDetailPage() {
             padding: '16px',
             display: 'flex', flexDirection: 'column', gap: '10px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={font(14, 600, '#1c1c1c')}>Assessment Criteria</span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{
-                  backgroundColor: '#c6c7f8', borderRadius: '4px',
-                  padding: '5px 8px',
-                  ...font(14, 400, '#1c1c1c'),
-                }}>
-                  [Unit 01] Skills
+            <span style={font(14, 600, '#1c1c1c')}>Assessment Criteria</span>
+            {task.reference ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={font(13, 400, '#5689f5', { lineHeight: '18px' })}>
+                  Ref: {task.reference}
                 </span>
-                <span style={{
-                  backgroundColor: '#e5ecf6', borderRadius: '4px',
-                  padding: '5px 8px',
-                  ...font(14, 400, '#1c1c1c'),
-                }}>
-                  [1] IT
-                </span>
+                {task.description && (
+                  <span style={font(13, 400, 'rgba(28,28,28,0.6)', { lineHeight: '18px' })}>
+                    {task.description}
+                  </span>
+                )}
               </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={font(13, 400, '#5689f5', { lineHeight: '18px' })}>
-                [1.1b] Create proposals
+            ) : (
+              <span style={font(13, 400, 'rgba(28,28,28,0.4)', { lineHeight: '18px' })}>
+                No assessment criteria specified for this task.
               </span>
-              <span style={font(13, 400, '#5689f5', { lineHeight: '18px' })}>
-                [1.1c] Perform financial processes
-              </span>
-            </div>
+            )}
           </div>
 
         </div>

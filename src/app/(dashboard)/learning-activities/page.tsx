@@ -171,6 +171,19 @@ export default function LearningActivitiesPage() {
   const toggleShowcase = (id: string) =>
     setActivities(prev => prev.map(a => a.id === id ? { ...a, addToShowcase: !a.addToShowcase } : a))
 
+  const markComplete = async (id: string) => {
+    if (!token) return
+    try {
+      await apiFetch(`/learning-activities/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+      setActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'COMPLETED' } : a))
+    } catch (err) {
+      console.error('Failed to mark complete:', err)
+    }
+  }
+
   const openActivity = (id: string) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('currentActivityId', id)
@@ -298,7 +311,24 @@ export default function LearningActivitiesPage() {
                     <td style={{ ...font(13), padding: '13px 8px', width: '120px', textAlign: 'center' }}>{row.learnerTime}</td>
                     <td style={{ ...font(13), padding: '13px 8px', width: '110px' }}>{row.plan}</td>
                     <td style={{ ...font(13), padding: '13px 8px', width: '130px' }}>{row.actionRequiredBy}</td>
-                    <td style={{ padding: '13px 8px', width: '110px' }}><StatusBadge status={row.status} /></td>
+                    <td style={{ padding: '13px 8px', width: '150px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <StatusBadge status={row.status} />
+                        {row.status !== 'COMPLETED' && row.status !== 'CANCELLED' && (
+                          <button
+                            onClick={() => markComplete(row.id)}
+                            style={{
+                              padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e',
+                              backgroundColor: 'transparent', cursor: 'pointer',
+                              ...font(11, 500, '#22c55e'),
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            ✓ Complete
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding: '13px 8px', width: '80px', textAlign: 'center' }}>
                       <input
                         type="checkbox"

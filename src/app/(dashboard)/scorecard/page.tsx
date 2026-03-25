@@ -63,17 +63,22 @@ function ScorecardInner() {
   const [dateRange, setDateRange] = useState('Date range')
   const [showUnits, setShowUnits] = useState('Show units')
 
-  useEffect(() => {
+  const loadScorecards = (from?: string) => {
     const token = (session?.user as any)?.accessToken
     if (!token) return
-    apiFetch<any>('/scorecard/list', token)
+    setLoading(true)
+    const params = new URLSearchParams({ limit: '50' })
+    if (from) params.set('dateFrom', from)
+    apiFetch<any>(`/scorecard?${params}`, token)
       .then(resp => {
         const data = Array.isArray(resp?.data) ? resp.data : (resp?.data?.data ?? [])
         setScorecards(data)
       })
       .catch(() => setScorecards([]))
       .finally(() => setLoading(false))
-  }, [session])
+  }
+
+  useEffect(() => { loadScorecards() }, [session])
 
   return (
     <div style={{ padding: '24px 28px', ...FF }}>
@@ -106,7 +111,10 @@ function ScorecardInner() {
                 type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                 style={{ padding: '5px 8px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: 6, ...font(12) }}
               />
-              <button style={{ padding: '5px 14px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff') }}>
+              <button
+                onClick={() => loadScorecards(dateFrom || undefined)}
+                style={{ padding: '5px 14px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', ...font(12, 500, '#fff') }}
+              >
                 Submit
               </button>
             </div>
@@ -128,7 +136,7 @@ function ScorecardInner() {
                   >
                     <div>
                       <p style={{ ...font(13, 500), margin: 0 }}>{sc.title}</p>
-                      <p style={{ ...font(11, 400, '#888'), margin: '2px 0 0' }}>{sc.date}</p>
+                      <p style={{ ...font(11, 400, '#888'), margin: '2px 0 0' }}>{sc.date ? new Date(sc.date).toLocaleDateString('en-GB') : ''}</p>
                     </div>
                     <span style={{
                       ...font(11, 500, sc.submitted ? '#16a34a' : '#92400e'),
