@@ -36,6 +36,13 @@ interface Activity {
   activityDate?: string
 }
 
+interface Course {
+  _id: string
+  title: string
+  category?: string
+  description?: string
+}
+
 function formatDateTime(dateStr: string) {
   const d = new Date(dateStr)
   const dd = String(d.getDate()).padStart(2, '0')
@@ -60,17 +67,20 @@ function formatMethod(method: string): string {
     .replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function ProgressUnitDetailsInner() {
+function ProgressUnitDetailsInner({ unitId }: { unitId: string }) {
   const router = useRouter()
   const { data: session, status } = useSession()
   const token = (session?.user as any)?.accessToken
   const [activeTab, setActiveTab] = useState(0)
-  const [selectedUnit, setSelectedUnit] = useState(1)
   const [comment, setComment] = useState('')
   const [reviews, setReviews] = useState<ProgressReviewEntry[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [course, setCourse] = useState<Course | null>(null)
   const [isSigned, setIsSigned] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // Derive unit index from slug (u1 → 0, u2 → 1, …)
+  const unitIndex = Math.max(0, parseInt(unitId.replace(/\D/g, ''), 10) - 1)
 
   const learnerName =
     [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ') || 'Learner'
@@ -84,25 +94,30 @@ function ProgressUnitDetailsInner() {
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [reviewResp, actResp] = await Promise.all([
+        const [reviewResp, actResp, courseResp] = await Promise.all([
           apiFetch<any>('/progress-review?limit=10&page=1', token),
           apiFetch<any>('/learning-activities?limit=200&page=1', token),
+          apiFetch<any>('/courses?limit=20&page=1', token),
         ])
 
         if (cancelled) return
 
-        // reviews — paginatedResponse wraps array in resp.data directly
+        // Reviews
         const rawReviews = reviewResp?.data
         const reviewList: ProgressReviewEntry[] = Array.isArray(rawReviews)
-          ? rawReviews
-          : (rawReviews?.data ?? [])
+          ? rawReviews : (rawReviews?.data ?? [])
         setReviews(reviewList)
-        setIsSigned(reviewList.some(r => r.signatures && r.signatures.some(s => s.signed)))
+        setIsSigned(reviewList.some(r => r.signatures?.some(s => s.signed)))
 
-        // activities
+        // Activities
         const rawActs = actResp?.data
         const actList: Activity[] = Array.isArray(rawActs) ? rawActs : (rawActs?.data ?? [])
         setActivities(actList)
+
+        // Course for this unit slot
+        const rawCourses = courseResp?.data
+        const courseList: Course[] = Array.isArray(rawCourses) ? rawCourses : (rawCourses?.data ?? [])
+        setCourse(courseList[unitIndex] ?? null)
       } catch (err) {
         if (!cancelled) console.error('Unit detail fetch error:', err)
       } finally {
@@ -112,7 +127,7 @@ function ProgressUnitDetailsInner() {
 
     fetchAll()
     return () => { cancelled = true }
-  }, [token, status])
+  }, [token, status, unitIndex])
 
   const feedbackReviews = reviews.filter(r => r.notes && r.notes.trim())
 
@@ -133,13 +148,15 @@ function ProgressUnitDetailsInner() {
         border: '1px solid rgba(28,28,28,0.08)', marginBottom: 16
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={font(13, 500)}>Unit: {selectedUnit}</span>
+          <span style={font(13, 500)}>Unit: {unitIndex + 1}</span>
           <select
-            value={selectedUnit}
-            onChange={e => setSelectedUnit(Number(e.target.value))}
+            value={unitIndex + 1}
+            onChange={e => router.push(`/progress-review/u${e.target.value}`)}
             style={{ padding: '3px 10px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: 6, ...font(12), background: '#fff', cursor: 'pointer' }}
           >
-            {[1, 2, 3, 4, 5].map(u => <option key={u} value={u}>{u}</option>)}
+            {Array.from({ length: Math.max(5, unitIndex + 1) }, (_, i) => i + 1).map(u => (
+              <option key={u} value={u}>{u}</option>
+            ))}
           </select>
         </div>
         {isSigned && (
@@ -170,8 +187,8 @@ function ProgressUnitDetailsInner() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
               { label: 'Learner Name', value: learnerName },
-              { label: 'Learning Aim', value: 'Business Administrator Gateway to End Point' },
-              { label: 'Awarding Body Reg.', value: 'Pending' },
+              { label: 'Learning Aim', value: loading ? '…' : (course?.title ?? '—') },
+              { label: 'Category', value: loading ? '…' : (course?.category ?? '—') },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p style={{ ...font(11, 400, '#888'), margin: '0 0 3px' }}>{label}</p>
@@ -181,7 +198,9 @@ function ProgressUnitDetailsInner() {
           </div>
 
           {/* Unit heading */}
-          <h3 style={{ ...font(14, 600), margin: 0 }}>[Unit 01] Gateway to End Point Assessment</h3>
+          <h3 style={{ ...font(14, 600), margin: 0 }}>
+            {loading ? 'Loading…' : `[Unit ${String(unitIndex + 1).padStart(2, '0')}] ${course?.title ?? 'Unit Details'}`}
+          </h3>
 
           {/* Sub-items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -317,6 +336,6 @@ function ProgressUnitDetailsInner() {
   )
 }
 
-export default function Page() {
-  return <Suspense><ProgressUnitDetailsInner /></Suspense>
+export default function Page({ params }: { params: { unitId: string } }) {
+  return <Suspense><ProgressUnitDetailsInner unitId={params.unitId} /></Suspense>
 }

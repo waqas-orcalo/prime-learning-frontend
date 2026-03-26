@@ -13,15 +13,6 @@ const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
   ({ ...FF, fontSize: `${size}px`, fontWeight: weight, color, ...extra } as React.CSSProperties)
 
-// Fixed qualification units for Business Administration apprenticeship
-const QUALIFICATION_UNITS = [
-  { id: 'u1', name: 'Business Administrator Gateway to End Point' },
-  { id: 'u2', name: '~ Business Administrator End Point Assessment' },
-  { id: 'u3', name: 'Business Administrator Apprenticeship Standard' },
-  { id: 'u4', name: 'NCFE Level 2 Functional Skills Qualification in English (September 2019)' },
-  { id: 'u5', name: 'NCFE Level 2 Functional Skills Qualification in Math (September 2019)' },
-]
-
 interface Activity {
   _id: string
   title: string
@@ -34,6 +25,7 @@ interface UnitData {
   id: string
   name: string
   progress: number
+  category?: string
 }
 
 function ProgressBar({ value }: { value: number }) {
@@ -99,54 +91,63 @@ function ProgressReviewInner() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Wait until next-auth has resolved the session
     if (status === 'loading') return
+    if (!token) { setLoading(false); return }
 
-    // Unauthenticated or no token — show 0% cards
-    if (!token) {
-      setUnits(QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 })))
-      setLoading(false)
-      return
-    }
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    let cancelled = false
 
     const fetchData = async () => {
       setLoading(true)
       setError(null)
       try {
-        const resp = await apiFetch<any>('/learning-activities?limit=200&page=1', token)
-        // Handle both {data:[]} and {data:{data:[]}} shapes
-        const raw = resp?.data
-        const acts: Activity[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
+        // Fetch both in parallel
+        const [actResp, courseResp] = await Promise.all([
+          apiFetch<any>('/learning-activities?limit=200&page=1', token),
+          apiFetch<any>('/courses?limit=20&page=1', token),
+        ])
 
+        if (cancelled) return
+
+        // Parse activities
+        const rawActs = actResp?.data
+        const acts: Activity[] = Array.isArray(rawActs) ? rawActs : (rawActs?.data ?? [])
+
+        // Parse courses — each becomes one unit card
+        const rawCourses = courseResp?.data
+        const courseList: Array<{ _id: string; title: string; category?: string }> =
+          Array.isArray(rawCourses) ? rawCourses : (rawCourses?.data ?? [])
+
+        // Calculate overall progress from activities
         const total = acts.length
         const completedActs = acts.filter((a: Activity) => a.status === 'COMPLETED')
         const pendingActs = acts.filter((a: Activity) => a.status === 'PENDING')
         const countForProgress = includePending ? total : (total - pendingActs.length)
-        const completed = completedActs.length
-        const pct = countForProgress > 0 ? Math.round((completed / countForProgress) * 100) : 0
+        const pct = countForProgress > 0 ? Math.round((completedActs.length / countForProgress) * 100) : 0
         setOverallProgress(pct)
 
-        setUnits(QUALIFICATION_UNITS.map((u) => ({ ...u, progress: pct })))
+        // Map each course to a unit card; use index-based slug (u1, u2…) for routing
+        setUnits(courseList.map((c, i) => ({
+          id: `u${i + 1}`,
+          name: c.title,
+          category: c.category,
+          progress: pct,
+        })))
       } catch (err: any) {
-        if (err?.name !== 'AbortError') {
+        if (!cancelled) {
           console.error('Failed to fetch progress data:', err)
           setError('Could not load progress data.')
         }
-        setUnits(QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 })))
+        if (!cancelled) setUnits([])
       } finally {
-        clearTimeout(timeoutId)
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchData()
-    return () => { controller.abort(); clearTimeout(timeoutId) }
+    return () => { cancelled = true }
   }, [token, includePending, status])
 
-  const displayUnits = units.length > 0 ? units : QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 }))
+  const displayUnits = units
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1060, ...FF }}>
