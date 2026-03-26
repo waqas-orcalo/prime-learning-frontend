@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import * as XLSX from 'xlsx'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const FF   = "'Inter', sans-serif"
@@ -565,6 +566,409 @@ function UsersPage({ token }: { token: string }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// COURSES PAGE — extended design tokens & helpers
+// ══════════════════════════════════════════════════════════════════════════════
+// Extra palette (admin page doesn't define these)
+const C_INDIGO_LIGHT = '#EEF2FF'
+const C_PURPLE       = '#8B5CF6'
+const C_TEAL         = '#06B6D4'
+const C_GREEN_EM     = '#10B981'
+const C_GRAY50       = '#F9FAFB'
+const C_GRAY100      = '#F3F4F6'
+const C_GRAY200      = '#E5E7EB'
+const C_GRAY400      = '#9CA3AF'
+const C_GRAY600      = '#4B5563'
+const C_GRAY900      = '#111827'
+const C_WHITE        = '#FFFFFF'
+const C_SH_SM        = '0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04)'
+const C_SH_MD        = '0 4px 16px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.04)'
+const C_SH_LG        = '0 20px 48px rgba(0,0,0,0.12),0 8px 20px rgba(0,0,0,0.06)'
+const C_SH_INDIGO    = '0 4px 14px rgba(99,102,241,0.35)'
+const C_FF           = "'Inter','SF Pro Display',-apple-system,sans-serif"
+const cf = (size: number, weight = 400, color = C_GRAY900, extra: React.CSSProperties = {}): React.CSSProperties =>
+  ({ fontFamily: C_FF, fontSize: `${size}px`, fontWeight: weight, color, lineHeight: 1.5, ...extra })
+const cInput: React.CSSProperties = {
+  border: `1.5px solid ${C_GRAY200}`, borderRadius: 10, padding: '10px 14px',
+  fontFamily: C_FF, fontSize: 14, outline: 'none', width: '100%',
+  boxSizing: 'border-box', color: C_GRAY900, background: C_WHITE,
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+}
+const cBtnPrimary: React.CSSProperties = {
+  background: `linear-gradient(135deg,#6366F1 0%,${C_PURPLE} 100%)`,
+  color: C_WHITE, border: 'none', borderRadius: 10, padding: '10px 20px',
+  cursor: 'pointer', fontFamily: C_FF, fontSize: 13, fontWeight: 600,
+  display: 'inline-flex', alignItems: 'center', gap: 7,
+  boxShadow: C_SH_INDIGO,
+}
+const cBtnSecondary: React.CSSProperties = {
+  background: C_WHITE, color: C_GRAY600, border: `1.5px solid ${C_GRAY200}`,
+  borderRadius: 10, padding: '9px 16px', cursor: 'pointer',
+  fontFamily: C_FF, fontSize: 13, fontWeight: 500,
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+}
+const cBtnDanger: React.CSSProperties = {
+  background: '#EF4444', color: C_WHITE, border: 'none', borderRadius: 10,
+  padding: '9px 18px', cursor: 'pointer', fontFamily: C_FF, fontSize: 13, fontWeight: 600,
+}
+const cBtnGhost = (color = C_GRAY600, borderColor = C_GRAY200): React.CSSProperties => ({
+  background: 'transparent', color, border: `1.5px solid ${borderColor}`,
+  borderRadius: 8, padding: '5px 11px', cursor: 'pointer',
+  fontFamily: C_FF, fontSize: 12, fontWeight: 500,
+  display: 'inline-flex', alignItems: 'center', gap: 5,
+})
+
+function CChip({ label, color, bg, dot }: { label: React.ReactNode; color: string; bg: string; dot?: string }) {
+  return (
+    <span style={{ display:'inline-flex',alignItems:'center',gap:5,borderRadius:99,padding:'4px 10px',fontSize:11,fontWeight:600,color,background:bg,fontFamily:C_FF }}>
+      {dot && <span style={{ width:6,height:6,borderRadius:'50%',background:dot,flexShrink:0 }} />}
+      {label}
+    </span>
+  )
+}
+
+function CStatCard({ icon, label, value, gradient }: { icon: string; label: string; value: number|string; gradient: string }) {
+  return (
+    <div style={{ background:C_WHITE,borderRadius:16,boxShadow:C_SH_SM,padding:'18px 22px',display:'flex',alignItems:'center',gap:16,flex:1 }}>
+      <div style={{ width:48,height:48,borderRadius:14,background:gradient,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0 }}>{icon}</div>
+      <div>
+        <div style={cf(22,700,C_GRAY900)}>{value}</div>
+        <div style={cf(12,500,C_GRAY400)}>{label}</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Course Stepper ────────────────────────────────────────────────────────────
+function CStepper({ step }: { step: number }) {
+  const steps = [{ label:'Course Info', icon:'📋' },{ label:'Modules & Content', icon:'📦' },{ label:'Review & Save', icon:'✅' }]
+  return (
+    <div style={{ display:'flex',alignItems:'center',gap:0,marginBottom:24,padding:'14px 18px',background:C_GRAY50,borderRadius:14 }}>
+      {steps.map(({ label, icon },i) => {
+        const active=i+1===step, done=i+1<step
+        return (
+          <div key={i} style={{ display:'flex',alignItems:'center',flex:i<steps.length-1?1:'none' }}>
+            <div style={{ display:'flex',alignItems:'center',gap:9 }}>
+              <div style={{ width:32,height:32,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,background:done?`linear-gradient(135deg,${C_GREEN_EM},#059669)`:active?`linear-gradient(135deg,#6366F1,${C_PURPLE})`:C_WHITE,border:`2px solid ${done?C_GREEN_EM:active?'#6366F1':C_GRAY200}`,boxShadow:active?C_SH_INDIGO:'none',fontSize:12,color:done||active?C_WHITE:C_GRAY400,fontWeight:700 }}>
+                {done?'✓':active?icon:i+1}
+              </div>
+              <div>
+                <div style={cf(12,done||active?600:400,done?C_GREEN_EM:active?'#6366F1':C_GRAY400)}>{label}</div>
+                {active && <div style={cf(10,400,C_GRAY400)}>Current step</div>}
+              </div>
+            </div>
+            {i<steps.length-1 && <div style={{ flex:1,height:2,marginLeft:12,marginRight:12,background:done?`linear-gradient(90deg,${C_GREEN_EM},${C_GREEN_EM})`:C_GRAY200,borderRadius:2 }} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Excel helpers ─────────────────────────────────────────────────────────────
+function cDownloadTemplate() {
+  const wb = XLSX.utils.book_new()
+  const info = XLSX.utils.aoa_to_sheet([
+    ['Field','Value','Notes'],
+    ['Course Title','Workplace Safety Fundamentals','Required'],
+    ['Description','Learn essential safety procedures and emergency response protocols.','Optional'],
+    ['Category','Health & Safety','Optional'],
+    ['Emoji','🛡️','Any single emoji'],
+    ['Status','PUBLISHED','PUBLISHED or DRAFT'],
+  ])
+  info['!cols']=[{wch:18},{wch:52},{wch:20}]
+  XLSX.utils.book_append_sheet(wb,info,'Course Info')
+  const data = XLSX.utils.aoa_to_sheet([
+    ['Module Name','Slide Content (optional)','Question','Option A','Option B','Option C','Option D','Correct (A/B/C/D)','Explanation','Pass %'],
+    ['Intro to Safety','Safety means being protected from harm. Always assess before acting.','First step in an emergency?','Call 911','Assess situation','Evacuate','Sound alarm','B','Always assess first.',70],
+    ['Intro to Safety','','PPE stands for?','Personal Protective Equipment','Planned Protection Exercise','Primary Protective Element','Personnel Enforcement','A','',70],
+    ['Communication Skills','Clear communication reduces errors and builds team trust.','Active listening involves?','Talking more','Focusing on speaker','Planning your reply','Checking phone','B','Give full attention to the speaker.',75],
+    ['Communication Skills','','Key element of clear communication?','Using jargon','Being concise','Speaking fast','Avoiding eye contact','B','',75],
+  ])
+  data['!cols']=[{wch:24},{wch:44},{wch:36},{wch:22},{wch:22},{wch:22},{wch:22},{wch:16},{wch:34},{wch:8}]
+  XLSX.utils.book_append_sheet(wb,data,'Modules & Quizzes')
+  XLSX.writeFile(wb,'course_bulk_import_template.xlsx')
+}
+
+interface CParsedExcel {
+  courseInfo: { title:string; description:string; category:string; emoji:string; status:string }
+  modules: CourseModule[]
+}
+async function cParseExcel(file: File): Promise<CParsedExcel> {
+  return new Promise((resolve,reject) => {
+    const reader = new FileReader()
+    reader.onerror = reject
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target!.result as ArrayBuffer),{type:'array'})
+        const ci = {title:'',description:'',category:'',emoji:'📚',status:'PUBLISHED'}
+        const infoName = wb.SheetNames.find(n=>n.toLowerCase().includes('info'))
+        if (infoName) {
+          const rows = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[infoName],{header:1,defval:''}) as string[][]
+          for (const r of rows) {
+            const k=String(r[0]||'').toLowerCase().trim(),v=String(r[1]||'').trim()
+            if (!v) continue
+            if (k.includes('title')) ci.title=v
+            if (k.includes('desc')) ci.description=v
+            if (k.includes('categ')) ci.category=v
+            if (k.includes('emoji')||k.includes('icon')) ci.emoji=v
+            if (k.includes('status')) ci.status=v.toUpperCase()==='DRAFT'?'DRAFT':'PUBLISHED'
+          }
+        }
+        const dataName=wb.SheetNames.find(n=>!n.toLowerCase().includes('info'))??wb.SheetNames[0]
+        const raw=XLSX.utils.sheet_to_json<string[]>(wb.Sheets[dataName],{header:1,defval:''}) as string[][]
+        const moduleMap=new Map<string,CourseModule>(), order:string[]=[]
+        for (let i=1;i<raw.length;i++) {
+          const r=raw[i]; if (!r||r.every(c=>!c)) continue
+          const mName=String(r[0]||'').trim(); if (!mName) continue
+          const slide=String(r[1]||'').trim(),q=String(r[2]||'').trim()
+          if (!moduleMap.has(mName)) { moduleMap.set(mName,{name:mName,slides:[],quiz:{passingScore:r[9]?Number(r[9]):70,questions:[]}}); order.push(mName) }
+          const mod=moduleMap.get(mName)!
+          if (slide&&!mod.slides.some(s=>s.content===slide)) mod.slides.push({content:slide})
+          if (r[9]) mod.quiz!.passingScore=Number(r[9])
+          if (q) { const am:Record<string,number>={A:0,B:1,C:2,D:3}; mod.quiz!.questions.push({question:q,options:[String(r[3]||''),String(r[4]||''),String(r[5]||''),String(r[6]||'')],correctIndex:am[String(r[7]||'').trim().toUpperCase()]??0,explanation:String(r[8]||'')}) }
+        }
+        Array.from(moduleMap.values()).forEach(mod=>{ if (mod.slides.length===0) mod.slides.push({content:''}) })
+        resolve({courseInfo:ci,modules:order.map(n=>moduleMap.get(n)!)})
+      } catch(err){reject(err)}
+    }
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+// ── Upload Zone (admin variant) ───────────────────────────────────────────────
+function CUploadZone({ onParsed }: { onParsed: (r: CParsedExcel) => void }) {
+  const [drag,setDrag]=useState(false)
+  const [st,setSt]=useState<'idle'|'loading'|'done'|'error'>('idle')
+  const [sum,setSum]=useState<{modules:number;questions:number;hasCourseInfo:boolean}|null>(null)
+  const [err,setErr]=useState('')
+  const ref=useRef<HTMLInputElement>(null)
+
+  const go=async(file:File)=>{
+    if (!file.name.match(/\.xlsx?$/i)){setErr('Please upload a .xlsx file');setSt('error');return}
+    setSt('loading');setErr('')
+    try {
+      const r=await cParseExcel(file)
+      setSum({modules:r.modules.length,questions:r.modules.reduce((s,m)=>s+(m.quiz?.questions.length??0),0),hasCourseInfo:!!r.courseInfo.title})
+      setSt('done');onParsed(r)
+    } catch {setErr('Could not read file — use the template format.');setSt('error')}
+  }
+
+  return (
+    <div style={{marginBottom:22}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:30,height:30,borderRadius:8,background:'linear-gradient(135deg,#06B6D4,#6366F1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>📤</div>
+          <div>
+            <div style={cf(13,700,C_GRAY900)}>Bulk Upload from Excel</div>
+            <div style={cf(11,400,C_GRAY400)}>Auto-fills course info, modules, slides & quizzes</div>
+          </div>
+          <span style={{...cf(10,700,'#F59E0B'),background:'rgba(245,158,11,0.12)',borderRadius:99,padding:'3px 9px',border:'1px solid rgba(245,158,11,0.25)'}}>⚡ Recommended</span>
+        </div>
+        <button onClick={cDownloadTemplate} style={{...cBtnSecondary,borderColor:C_TEAL,color:C_TEAL,fontSize:12,padding:'6px 12px'}}>⬇ Template</button>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+        <div style={{background:C_GRAY50,borderRadius:10,padding:10,border:`1px solid ${C_GRAY200}`}}>
+          <div style={cf(11,700,C_GRAY600,{marginBottom:6})}>📋 Sheet 1 — "Course Info"</div>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:10,fontFamily:C_FF}}>
+            <tbody>{[['Course Title','My Course'],['Description','…'],['Category','IT'],['Status','PUBLISHED']].map(([k,v],i)=>(
+              <tr key={i}><td style={{padding:'2px 6px',fontWeight:600,color:C_GRAY600,background:i%2===0?C_GRAY50:C_WHITE,borderBottom:`1px solid ${C_GRAY100}`}}>{k}</td><td style={{padding:'2px 6px',color:C_GRAY400,background:i%2===0?C_GRAY50:C_WHITE,borderBottom:`1px solid ${C_GRAY100}`}}>{v}</td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+        <div style={{background:C_GRAY50,borderRadius:10,padding:10,border:`1px solid ${C_GRAY200}`}}>
+          <div style={cf(11,700,C_GRAY600,{marginBottom:6})}>🗂️ Sheet 2 — "Modules & Quizzes"</div>
+          <table style={{borderCollapse:'collapse',fontSize:10,fontFamily:C_FF,width:'100%'}}>
+            <thead><tr style={{background:'linear-gradient(90deg,#6366F1,#8B5CF6)'}}>{['Module','Slide','Question','A','B','C','D','✓','%'].map(h=><th key={h} style={{padding:'3px 5px',color:C_WHITE,fontWeight:600,textAlign:'left'}}>{h}</th>)}</tr></thead>
+            <tbody><tr style={{background:C_GRAY50}}><td style={{padding:'3px 5px',color:'#6366F1',fontWeight:600}}>Safety</td><td style={{padding:'3px 5px',color:C_GRAY400}}>PPE…</td><td style={{padding:'3px 5px',color:C_GRAY600}}>First step?</td><td style={{padding:'3px 5px',color:C_GRAY400}}>Call 911</td><td style={{padding:'3px 5px',color:C_GRAY400}}>Assess</td><td style={{padding:'3px 5px',color:C_GRAY400}}>Run</td><td style={{padding:'3px 5px',color:C_GRAY400}}>Alarm</td><td style={{padding:'3px 5px',color:C_GREEN_EM,fontWeight:700}}>B</td><td style={{padding:'3px 5px',color:C_GRAY400}}>70</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+        onDrop={e=>{e.preventDefault();setDrag(false);const f=e.dataTransfer.files[0];if(f)go(f)}}
+        onClick={()=>st!=='loading'&&ref.current?.click()}
+        style={{border:`2px dashed ${drag?'#6366F1':st==='done'?C_GREEN_EM:st==='error'?'#EF4444':C_GRAY200}`,borderRadius:14,padding:'22px 20px',textAlign:'center',cursor:'pointer',background:drag?C_INDIGO_LIGHT:st==='done'?'rgba(16,185,129,0.05)':st==='error'?'rgba(239,68,68,0.04)':C_GRAY50,transition:'all 0.2s'}}>
+        <input ref={ref} type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)go(f);e.target.value=''}} />
+        {st==='loading'&&<div><div style={{fontSize:28,marginBottom:8}}>⏳</div><div style={cf(13,600,C_GRAY600)}>Parsing…</div></div>}
+        {st==='done'&&sum&&(
+          <div>
+            <div style={{width:44,height:44,borderRadius:'50%',background:'linear-gradient(135deg,#10B981,#059669)',margin:'0 auto 10px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,boxShadow:'0 4px 12px rgba(16,185,129,0.4)'}}>✓</div>
+            <div style={cf(14,700,'#059669')}>Imported successfully!</div>
+            <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:8,flexWrap:'wrap'}}>
+              {sum.hasCourseInfo&&<CChip label="Course info filled" color={C_TEAL} bg="rgba(6,182,212,0.1)" />}
+              <CChip label={`${sum.modules} modules`} color="#6366F1" bg={C_INDIGO_LIGHT} />
+              <CChip label={`${sum.questions} questions`} color={C_PURPLE} bg="rgba(139,92,246,0.1)" />
+            </div>
+            <div style={cf(11,400,C_GRAY400,{marginTop:8})}>Click to upload a different file</div>
+          </div>
+        )}
+        {st==='error'&&<div><div style={{fontSize:28,marginBottom:8}}>❌</div><div style={cf(13,600,'#EF4444')}>{err}</div><div style={cf(11,400,C_GRAY400,{marginTop:4})}>Click to try again</div></div>}
+        {st==='idle'&&(
+          <div>
+            <div style={{fontSize:34,marginBottom:8}}>📂</div>
+            <div style={cf(14,600,C_GRAY900)}>Drop your .xlsx file here</div>
+            <div style={cf(12,400,C_GRAY400,{marginTop:4})}>or click to browse your computer</div>
+            <div style={{marginTop:12,display:'inline-flex',alignItems:'center',gap:6,background:C_INDIGO_LIGHT,borderRadius:99,padding:'5px 14px'}}><span style={cf(11,600,'#6366F1')}>Fills title, modules, slides & quiz questions automatically</span></div>
+          </div>
+        )}
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginTop:18,marginBottom:4}}>
+        <div style={{flex:1,height:1,background:C_GRAY200}} />
+        <span style={cf(11,500,C_GRAY400)}>or build manually below</span>
+        <div style={{flex:1,height:1,background:C_GRAY200}} />
+      </div>
+    </div>
+  )
+}
+
+// ── Admin Module Card (collapsible) ───────────────────────────────────────────
+function CModuleCard({ mod, mi, total, onChange, onRemove }: {
+  mod: CourseModule; mi: number; total: number
+  onChange: (u: CourseModule) => void; onRemove: () => void
+}) {
+  const [open,setOpen]=useState(true)
+  const slidesFilled=mod.slides.filter(s=>s.content.trim()).length
+  const qCount=mod.quiz?.questions.length??0
+  const accents=['#6366F1',C_PURPLE,C_TEAL,'#F59E0B',C_GREEN_EM]
+  const accent=accents[mi%5]
+
+  const updQ=(qi:number,u:Partial<QuizQuestion>)=>onChange({...mod,quiz:{...mod.quiz!,questions:mod.quiz!.questions.map((q,j)=>j===qi?{...q,...u}:q)}})
+
+  return (
+    <div style={{marginBottom:12,borderRadius:14,overflow:'hidden',boxShadow:C_SH_SM,border:open?`1.5px solid ${accent}22`:`1.5px solid ${C_GRAY200}`}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',background:open?`linear-gradient(135deg,${accent}0F,${accent}05)`:C_WHITE,cursor:'pointer'}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${accent},${accent}BB)`,color:C_WHITE,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0,boxShadow:`0 2px 8px ${accent}44`}}>M{mi+1}</div>
+        <div style={{flex:1,minWidth:0}} onClick={e=>e.stopPropagation()}>
+          <input style={{border:'none',background:'transparent',padding:0,fontSize:14,fontWeight:600,color:C_GRAY900,outline:'none',fontFamily:C_FF,width:'100%'}} placeholder={`Module ${mi+1} name`} value={mod.name} onChange={e=>onChange({...mod,name:e.target.value})} />
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          {slidesFilled>0&&<CChip label={`📄 ${slidesFilled}`} color={C_GRAY600} bg={C_GRAY100} />}
+          {qCount>0&&<CChip label={`🧩 ${qCount}`} color={C_PURPLE} bg="rgba(139,92,246,0.1)" />}
+          <div style={{width:22,height:22,borderRadius:6,background:C_GRAY100,display:'flex',alignItems:'center',justifyContent:'center',color:C_GRAY400,fontSize:10}}>{open?'▲':'▼'}</div>
+          {total>1&&<button onClick={e=>{e.stopPropagation();onRemove()}} style={{background:'rgba(239,68,68,0.08)',border:'none',cursor:'pointer',width:24,height:24,borderRadius:6,color:'#EF4444',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>}
+        </div>
+      </div>
+
+      {open&&(
+        <div style={{padding:'4px 16px 16px',background:C_WHITE}}>
+          {/* Slides */}
+          <div style={{marginTop:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:7}}><span style={{fontSize:13}}>📄</span><span style={cf(13,700,C_GRAY900)}>Slides</span><span style={{...cf(11,600,accent),background:`${accent}15`,borderRadius:99,padding:'2px 7px'}}>{mod.slides.length}</span></div>
+              <button style={cBtnGhost(accent,`${accent}44`)} onClick={()=>onChange({...mod,slides:[...mod.slides,{content:''}]})}>+ Add Slide</button>
+            </div>
+            {mod.slides.map((sl,si)=>(
+              <div key={si} style={{display:'flex',gap:8,marginBottom:8,alignItems:'flex-start'}}>
+                <div style={{width:22,height:22,borderRadius:6,background:`${accent}15`,color:accent,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,flexShrink:0,marginTop:10}}>S{si+1}</div>
+                <textarea style={{...cInput,minHeight:66,resize:'vertical' as const,flex:1,fontSize:13}} placeholder={`Slide ${si+1} content…`} value={sl.content} onChange={e=>onChange({...mod,slides:mod.slides.map((s,j)=>j===si?{content:e.target.value}:s)})} />
+                {mod.slides.length>1&&<button onClick={()=>onChange({...mod,slides:mod.slides.filter((_,j)=>j!==si)})} style={{background:'transparent',border:'none',cursor:'pointer',color:'#EF4444',fontSize:18,marginTop:8,flexShrink:0}}>×</button>}
+              </div>
+            ))}
+          </div>
+
+          {/* Quiz */}
+          <div style={{borderTop:`1.5px solid ${C_GRAY100}`,marginTop:14,paddingTop:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <div style={{display:'flex',alignItems:'center',gap:7}}><span style={{fontSize:13}}>🧩</span><span style={cf(13,700,C_GRAY900)}>Quiz</span>{mod.quiz&&<span style={{...cf(11,600,C_PURPLE),background:'rgba(139,92,246,0.1)',borderRadius:99,padding:'2px 7px'}}>{mod.quiz.questions.length} Q</span>}</div>
+              {mod.quiz
+                ?<button style={cBtnGhost('#EF4444','rgba(239,68,68,0.3)')} onClick={()=>onChange({...mod,quiz:undefined})}>Remove</button>
+                :<button style={cBtnGhost(C_PURPLE,'rgba(139,92,246,0.3)')} onClick={()=>onChange({...mod,quiz:{passingScore:70,questions:[{question:'',options:['','','',''],correctIndex:0,explanation:''}]}})}>+ Add Quiz</button>}
+            </div>
+
+            {mod.quiz&&(
+              <div style={{background:C_GRAY50,borderRadius:12,padding:12,border:`1px solid ${C_GRAY200}`}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,padding:'9px 12px',background:C_WHITE,borderRadius:10,border:`1px solid ${C_GRAY200}`}}>
+                  <span style={cf(13,500,C_GRAY600)}>Passing score</span>
+                  <input type="number" min={0} max={100} style={{...cInput,width:66,textAlign:'center',padding:'6px 10px'}} value={mod.quiz.passingScore} onChange={e=>onChange({...mod,quiz:{...mod.quiz!,passingScore:Number(e.target.value)}})} />
+                  <span style={cf(13,400,C_GRAY400)}>%</span>
+                  <span style={{...cf(11,500,C_GRAY400),marginLeft:'auto'}}>Recommended: 70%</span>
+                </div>
+
+                {mod.quiz.questions.map((q,qi)=>(
+                  <div key={qi} style={{background:C_WHITE,borderRadius:12,padding:14,marginBottom:10,border:`1px solid ${C_GRAY200}`,boxShadow:C_SH_SM}}>
+                    <div style={{display:'flex',gap:8,marginBottom:10}}>
+                      <div style={{width:26,height:26,borderRadius:7,background:`linear-gradient(135deg,${C_PURPLE},#6366F1)`,color:C_WHITE,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>Q{qi+1}</div>
+                      <input style={{...cInput,flex:1,fontWeight:500}} placeholder="Question text…" value={q.question} onChange={e=>updQ(qi,{question:e.target.value})} />
+                      <button onClick={()=>onChange({...mod,quiz:{...mod.quiz!,questions:mod.quiz!.questions.filter((_,j)=>j!==qi)}})} style={{background:'rgba(239,68,68,0.08)',border:'none',cursor:'pointer',width:28,height:28,borderRadius:7,color:'#EF4444',fontSize:15,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:8}}>
+                      {q.options.map((opt,oi)=>(
+                        <label key={oi} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 10px',borderRadius:9,border:`1.5px solid ${q.correctIndex===oi?C_GREEN_EM:C_GRAY200}`,background:q.correctIndex===oi?'rgba(16,185,129,0.06)':C_WHITE,cursor:'pointer'}}>
+                          <input type="radio" name={`cq-${mi}-${qi}`} checked={q.correctIndex===oi} onChange={()=>updQ(qi,{correctIndex:oi})} style={{accentColor:C_GREEN_EM,flexShrink:0}} />
+                          <span style={{...cf(10,700,q.correctIndex===oi?C_GREEN_EM:C_GRAY400),minWidth:13}}>{String.fromCharCode(65+oi)}</span>
+                          <input style={{border:'none',background:'transparent',outline:'none',fontFamily:C_FF,fontSize:13,flex:1,minWidth:0}} placeholder={`Option ${String.fromCharCode(65+oi)}`} value={opt} onChange={e=>updQ(qi,{options:q.options.map((o,k)=>k===oi?e.target.value:o)})} />
+                          {q.correctIndex===oi&&<span style={{fontSize:12,color:C_GREEN_EM,flexShrink:0}}>✓</span>}
+                        </label>
+                      ))}
+                    </div>
+                    <input style={{...cInput,fontSize:12,background:C_GRAY50}} placeholder="💬 Explanation (optional)" value={q.explanation??''} onChange={e=>updQ(qi,{explanation:e.target.value})} />
+                  </div>
+                ))}
+                <button style={{...cBtnGhost(C_PURPLE,'rgba(139,92,246,0.3)'),marginTop:6}} onClick={()=>onChange({...mod,quiz:{...mod.quiz!,questions:[...mod.quiz!.questions,{question:'',options:['','','',''],correctIndex:0,explanation:''}]}})}>+ Add Question</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Admin Course Card ─────────────────────────────────────────────────────────
+function AdminCourseCard({ course, idx, onEdit, onDelete, onPublish, onEnroll, onEnrollGroup, onAssignTrainer }: {
+  course: CourseRecord; idx: number
+  onEdit:()=>void; onDelete:()=>void; onPublish:()=>void
+  onEnroll:()=>void; onEnrollGroup:()=>void; onAssignTrainer:()=>void
+}) {
+  const [hover,setHover]=useState(false)
+  const gradients=['linear-gradient(135deg,#6366F1,#8B5CF6)','linear-gradient(135deg,#10B981,#059669)','linear-gradient(135deg,#F59E0B,#D97706)','linear-gradient(135deg,#06B6D4,#0284C7)','linear-gradient(135deg,#EF4444,#DC2626)','linear-gradient(135deg,#8B5CF6,#7C3AED)']
+  const grad=gradients[idx%gradients.length]
+  const quizCount=course.courseModules?.filter(m=>m.quiz&&m.quiz.questions.length>0).length??0
+
+  return (
+    <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+      style={{background:C_WHITE,borderRadius:18,boxShadow:hover?C_SH_MD:C_SH_SM,overflow:'hidden',transition:'box-shadow 0.2s, transform 0.2s',transform:hover?'translateY(-2px)':'none',border:`1px solid ${C_GRAY100}`}}>
+      {/* Gradient header */}
+      <div style={{height:90,background:grad,display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
+        <div style={{fontSize:38}}>{course.thumbnailEmoji||'📚'}</div>
+        <div style={{position:'absolute',top:10,right:10}}>
+          {course.status==='PUBLISHED'
+            ?<CChip label="Published" color="#fff" bg="rgba(255,255,255,0.25)" dot="#fff" />
+            :course.status==='ARCHIVED'
+            ?<CChip label="Archived" color="#fff" bg="rgba(255,255,255,0.2)" />
+            :<CChip label="Draft" color="#fff" bg="rgba(255,255,255,0.2)" dot="#FCD34D" />}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{padding:'14px 16px 16px'}}>
+        <div style={cf(14,700,C_GRAY900,{marginBottom:4})}>{course.title}</div>
+        {course.description&&<div style={{...cf(12,400,C_GRAY400),marginBottom:8,overflow:'hidden',textOverflow:'ellipsis',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const}}>{course.description}</div>}
+
+        <div style={{display:'flex',flexWrap:'wrap' as const,gap:6,marginBottom:12}}>
+          {course.category&&<CChip label={course.category} color="#6366F1" bg={C_INDIGO_LIGHT} />}
+          {(course.courseModules?.length??0)>0&&<CChip label={`📦 ${course.courseModules!.length} modules`} color={C_GRAY600} bg={C_GRAY100} />}
+          {quizCount>0&&<CChip label={`🧩 ${quizCount} quiz${quizCount>1?'zes':''}`} color={C_PURPLE} bg="rgba(139,92,246,0.1)" />}
+          {(course.enrolledUsers?.length??0)>0&&<CChip label={`👥 ${course.enrolledUsers!.length}`} color={C_GREEN_EM} bg="rgba(16,185,129,0.1)" />}
+          {(course.assignedTrainers?.length??0)>0&&<CChip label={`🎓 ${course.assignedTrainers!.length} trainer${course.assignedTrainers!.length>1?'s':''}`} color={C_TEAL} bg="rgba(6,182,212,0.1)" />}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{display:'flex',flexWrap:'wrap' as const,gap:5}}>
+          {course.status!=='PUBLISHED'&&<button onClick={onPublish} style={{...cBtnGhost(C_GREEN_EM,'rgba(16,185,129,0.3)'),fontSize:11,padding:'4px 9px'}}>✅ Publish</button>}
+          <button onClick={onEnroll} style={{...cBtnGhost('#6366F1','rgba(99,102,241,0.3)'),fontSize:11,padding:'4px 9px'}}>👤 Enroll</button>
+          <button onClick={onEnrollGroup} style={{...cBtnGhost(C_TEAL,'rgba(6,182,212,0.3)'),fontSize:11,padding:'4px 9px'}}>👥 Group</button>
+          <button onClick={onAssignTrainer} style={{...cBtnGhost(C_PURPLE,'rgba(139,92,246,0.3)'),fontSize:11,padding:'4px 9px'}}>🎓 Trainers</button>
+          <button onClick={onEdit} style={{...cBtnGhost(C_GRAY600,C_GRAY200),fontSize:11,padding:'4px 9px'}}>✏️ Edit</button>
+          <button onClick={onDelete} style={{...cBtnGhost('#EF4444','rgba(239,68,68,0.3)'),fontSize:11,padding:'4px 9px'}}>🗑️</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // COURSES PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 interface CourseSlide { content: string }
@@ -592,39 +996,36 @@ const COURSE_GRADIENTS = [
 ]
 
 function CoursesPage({ token }: { token: string }) {
-  const [courses, setCourses]       = useState<CourseRecord[]>([])
-  const [total, setTotal]           = useState(0)
-  const [page, setPage]             = useState(1)
-  const [loading, setLoading]       = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [editCourse, setEditCourse] = useState<CourseRecord | null>(null)
+  const [courses, setCourses]           = useState<CourseRecord[]>([])
+  const [total, setTotal]               = useState(0)
+  const [page, setPage]                 = useState(1)
+  const [loading, setLoading]           = useState(true)
+  const [showCreate, setShowCreate]     = useState(false)
+  const [editorStep, setEditorStep]     = useState(1)
+  const [editCourse, setEditCourse]     = useState<CourseRecord | null>(null)
   const [deleteCourse, setDeleteCourse] = useState<CourseRecord | null>(null)
-  const [deleting, setDeleting]     = useState(false)
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState('')
-  const [enrollModal, setEnrollModal] = useState<CourseRecord | null>(null)
+  const [deleting, setDeleting]         = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [error, setError]               = useState('')
+  const [enrollModal, setEnrollModal]   = useState<CourseRecord | null>(null)
   const [enrollSearch, setEnrollSearch] = useState('')
-  const [enrollUsers, setEnrollUsers] = useState<UserRecord[]>([])
+  const [enrollUsers, setEnrollUsers]   = useState<UserRecord[]>([])
   const [selectedEnrollIds, setSelectedEnrollIds] = useState<string[]>([])
-  const [enrolling, setEnrolling]   = useState(false)
-  // Group enrollment
+  const [enrolling, setEnrolling]       = useState(false)
   const [enrollGroupModal, setEnrollGroupModal] = useState<CourseRecord | null>(null)
   const [enrollGroups, setEnrollGroups] = useState<{ _id: string; name: string; members: any[] }[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [enrollingGroup, setEnrollingGroup] = useState(false)
-  // Assign trainers modal
   const [assignTrainerModal, setAssignTrainerModal] = useState<CourseRecord | null>(null)
-  const [allTrainers, setAllTrainers] = useState<{ _id: string; firstName: string; lastName: string; email: string }[]>([])
+  const [allTrainers, setAllTrainers]   = useState<{ _id: string; firstName: string; lastName: string; email: string }[]>([])
   const [selectedTrainerIds, setSelectedTrainerIds] = useState<string[]>([])
   const [trainerSearch, setTrainerSearch] = useState('')
-  const [assigning, setAssigning] = useState(false)
+  const [assigning, setAssigning]       = useState(false)
 
   const LIMIT = 12
+  const ALL_EMOJIS = ['📘','📊','🔬','💼','🧪','🎯','🧠','💻','🌐','📐','🛡️','🚀','🎨','🔐','⚡','🎓','🧩','🗂️']
 
-  const [form, setForm] = useState({
-    title: '', description: '', category: '', duration: '',
-    status: 'DRAFT', thumbnailEmoji: '📘'
-  })
+  const [form, setForm] = useState({ title:'', description:'', category:'', duration:'', status:'DRAFT', thumbnailEmoji:'📘' })
   const [courseModules, setCourseModules] = useState<CourseModule[]>([])
 
   useEffect(() => {
@@ -638,7 +1039,7 @@ function CoursesPage({ token }: { token: string }) {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) })
-      const res  = await apiFetch(`${apiBase()}/courses?${params}`, token)
+      const res = await apiFetch(`${apiBase()}/courses?${params}`, token)
       const body = await res.json()
       setCourses(Array.isArray(body?.data) ? body.data : (body?.data?.items ?? []))
       setTotal(body?.pagination?.total ?? body?.data?.total ?? 0)
@@ -647,44 +1048,30 @@ function CoursesPage({ token }: { token: string }) {
 
   useEffect(() => { load() }, [load])
 
-  // Load users for enroll modal
   useEffect(() => {
     if (!enrollModal) return
     apiFetch(`${apiBase()}/users?limit=100${enrollSearch ? `&search=${encodeURIComponent(enrollSearch)}` : ''}`, token)
-      .then(r => r.json())
-      .then(b => setEnrollUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
-      .catch(() => {})
+      .then(r => r.json()).then(b => setEnrollUsers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? []))).catch(() => {})
   }, [enrollModal, enrollSearch, token])
 
-  // Load groups for group-enroll modal
   useEffect(() => {
     if (!enrollGroupModal) return
     setSelectedGroupId('')
-    apiFetch(`${apiBase()}/groups`, token)
-      .then(r => r.json())
-      .then(b => setEnrollGroups(Array.isArray(b?.data) ? b.data : []))
-      .catch(() => {})
+    apiFetch(`${apiBase()}/groups`, token).then(r => r.json()).then(b => setEnrollGroups(Array.isArray(b?.data) ? b.data : [])).catch(() => {})
   }, [enrollGroupModal, token])
 
-  // Load trainers when assign trainer modal opens
   useEffect(() => {
     if (!assignTrainerModal) return
     setSelectedTrainerIds((assignTrainerModal.assignedTrainers ?? []).slice())
     setTrainerSearch('')
-    apiFetch(`${apiBase()}/users?limit=200&role=TRAINER`, token)
-      .then(r => r.json())
-      .then(b => setAllTrainers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? [])))
-      .catch(() => {})
+    apiFetch(`${apiBase()}/users?limit=200&role=TRAINER`, token).then(r => r.json()).then(b => setAllTrainers(Array.isArray(b?.data) ? b.data : (b?.data?.items ?? []))).catch(() => {})
   }, [assignTrainerModal, token])
 
   const handleAssignTrainers = async () => {
     if (!assignTrainerModal || selectedTrainerIds.length === 0) return
     setAssigning(true)
     try {
-      const res = await apiFetch(`${apiBase()}/courses/${assignTrainerModal._id}/assign-trainers`, token, {
-        method: 'POST',
-        body: JSON.stringify({ trainerIds: selectedTrainerIds }),
-      })
+      const res = await apiFetch(`${apiBase()}/courses/${assignTrainerModal._id}/assign-trainers`, token, { method: 'POST', body: JSON.stringify({ trainerIds: selectedTrainerIds }) })
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b?.message ?? 'Assign failed') }
       setAssignTrainerModal(null); load()
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Assign failed') }
@@ -694,7 +1081,6 @@ function CoursesPage({ token }: { token: string }) {
   const handleRevokeTrainer = async (courseId: string, trainerId: string) => {
     try {
       await apiFetch(`${apiBase()}/courses/${courseId}/assign-trainers/${trainerId}`, token, { method: 'DELETE' })
-      // Update local state immediately
       setAssignTrainerModal(prev => prev ? { ...prev, assignedTrainers: (prev.assignedTrainers ?? []).filter(id => id !== trainerId) } : null)
       setSelectedTrainerIds(prev => prev.filter(id => id !== trainerId))
       load()
@@ -702,35 +1088,27 @@ function CoursesPage({ token }: { token: string }) {
   }
 
   const openCreate = () => {
-    setForm({ title: '', description: '', category: '', duration: '', status: 'DRAFT', thumbnailEmoji: '📘' })
-    setCourseModules([])
-    setShowCreate(true)
+    setForm({ title:'', description:'', category:'', duration:'', status:'DRAFT', thumbnailEmoji:'📘' })
+    setCourseModules([]); setEditorStep(1); setShowCreate(true)
   }
   const openEdit = (c: CourseRecord) => {
-    setForm({ title: c.title, description: c.description ?? '', category: c.category ?? '',
-      duration: c.duration ?? '', status: c.status, thumbnailEmoji: c.thumbnailEmoji ?? '📘' })
-    setCourseModules(c.courseModules ? c.courseModules.map(m => ({
-      name: m.name,
-      slides: m.slides.map(s => ({ content: s.content })),
-      quiz: m.quiz ? {
-        passingScore: m.quiz.passingScore ?? 70,
-        questions: m.quiz.questions.map(q => ({ question: q.question, options: [...q.options], correctIndex: q.correctIndex, explanation: q.explanation ?? '' }))
-      } : undefined
-    })) : [])
-    setEditCourse(c)
+    setForm({ title:c.title, description:c.description??'', category:c.category??'', duration:c.duration??'', status:c.status, thumbnailEmoji:c.thumbnailEmoji??'📘' })
+    setCourseModules(c.courseModules ? c.courseModules.map(m => ({ name:m.name, slides:m.slides.map(s=>({content:s.content})), quiz:m.quiz?{passingScore:m.quiz.passingScore??70,questions:m.quiz.questions.map(q=>({...q,options:[...q.options],explanation:q.explanation??''}))}:undefined })) : [])
+    setEditCourse(c); setEditorStep(1)
+  }
+
+  const handleBulkParsed = (r: CParsedExcel) => {
+    if (r.courseInfo.title) setForm(p=>({...p,title:r.courseInfo.title||p.title,description:r.courseInfo.description||p.description,category:r.courseInfo.category||p.category,thumbnailEmoji:r.courseInfo.emoji||p.thumbnailEmoji,status:r.courseInfo.status||p.status}))
+    if (r.modules.length>0) setCourseModules(r.modules)
   }
 
   const handleSave = async () => {
     setSaving(true); setError('')
     try {
-      const body: Record<string, any> = {
-        title: form.title, status: form.status, thumbnailEmoji: form.thumbnailEmoji,
-        courseModules,
-      }
+      const body: Record<string, any> = { title:form.title, status:form.status, thumbnailEmoji:form.thumbnailEmoji, courseModules }
       if (form.description) body.description = form.description
       if (form.category)    body.category    = form.category
       if (form.duration)    body.duration    = form.duration
-
       const url    = editCourse ? `${apiBase()}/courses/${editCourse._id}` : `${apiBase()}/courses`
       const method = editCourse ? 'PATCH' : 'POST'
       const res    = await apiFetch(url, token, { method, body: JSON.stringify(body) })
@@ -741,41 +1119,26 @@ function CoursesPage({ token }: { token: string }) {
   }
 
   const handleDelete = async () => {
-    if (!deleteCourse) return
-    setDeleting(true)
-    try {
-      await apiFetch(`${apiBase()}/courses/${deleteCourse._id}`, token, { method: 'DELETE' })
-      setDeleteCourse(null); load()
-    } catch { setError('Delete failed') } finally { setDeleting(false) }
+    if (!deleteCourse) return; setDeleting(true)
+    try { await apiFetch(`${apiBase()}/courses/${deleteCourse._id}`, token, { method:'DELETE' }); setDeleteCourse(null); load() }
+    catch { setError('Delete failed') } finally { setDeleting(false) }
   }
 
   const handlePublish = async (c: CourseRecord) => {
-    try {
-      await apiFetch(`${apiBase()}/courses/${c._id}`, token, {
-        method: 'PATCH', body: JSON.stringify({ status: 'PUBLISHED' }),
-      })
-      load()
-    } catch { setError('Failed to update status') }
+    try { await apiFetch(`${apiBase()}/courses/${c._id}`, token, { method:'PATCH', body:JSON.stringify({status:'PUBLISHED'}) }); load() }
+    catch { setError('Failed to update status') }
   }
 
   const handleEnroll = async () => {
-    if (!enrollModal || selectedEnrollIds.length === 0) return
-    setEnrolling(true)
-    try {
-      await apiFetch(`${apiBase()}/courses/${enrollModal._id}/enroll`, token, {
-        method: 'POST', body: JSON.stringify({ userIds: selectedEnrollIds }),
-      })
-      setEnrollModal(null); setSelectedEnrollIds([]); load()
-    } catch { setError('Enroll failed') } finally { setEnrolling(false) }
+    if (!enrollModal || selectedEnrollIds.length === 0) return; setEnrolling(true)
+    try { await apiFetch(`${apiBase()}/courses/${enrollModal._id}/enroll`, token, { method:'POST', body:JSON.stringify({userIds:selectedEnrollIds}) }); setEnrollModal(null); setSelectedEnrollIds([]); load() }
+    catch { setError('Enroll failed') } finally { setEnrolling(false) }
   }
 
   const handleEnrollGroup = async () => {
-    if (!enrollGroupModal || !selectedGroupId) return
-    setEnrollingGroup(true)
+    if (!enrollGroupModal || !selectedGroupId) return; setEnrollingGroup(true)
     try {
-      const res = await apiFetch(`${apiBase()}/courses/${enrollGroupModal._id}/enroll-group`, token, {
-        method: 'POST', body: JSON.stringify({ groupId: selectedGroupId }),
-      })
+      const res = await apiFetch(`${apiBase()}/courses/${enrollGroupModal._id}/enroll-group`, token, { method:'POST', body:JSON.stringify({groupId:selectedGroupId}) })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.message ?? 'Group enroll failed')
       setEnrollGroupModal(null); setSelectedGroupId(''); load()
@@ -783,474 +1146,337 @@ function CoursesPage({ token }: { token: string }) {
     finally { setEnrollingGroup(false) }
   }
 
+  // Stats
+  const totalEnrolled = courses.reduce((s,c)=>s+(c.enrolledUsers?.length??0),0)
+  const totalQuizzes  = courses.reduce((s,c)=>s+(c.courseModules?.filter(m=>m.quiz&&m.quiz.questions.length>0).length??0),0)
+  const stepOk = editorStep === 1 ? !!form.title.trim() : true
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <div style={{ ...font(22, 700, NAVY) }}>Course Management</div>
-          <div style={{ ...font(13, 400, MUTED), marginTop: 2 }}>Create, edit and organise all learning courses</div>
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <style>{`
+        @keyframes adminFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        .admin-course-modal input:focus,.admin-course-modal textarea:focus,.admin-course-modal select:focus{border-color:#6366F1!important;box-shadow:0 0 0 3px rgba(99,102,241,0.12)!important;outline:none}
+      `}</style>
+
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', animation:'adminFadeIn 0.4s ease' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ width:46,height:46,borderRadius:14,background:'linear-gradient(135deg,#6366F1,#8B5CF6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,boxShadow:C_SH_INDIGO }}>🎓</div>
+          <div>
+            <div style={cf(22,800,C_GRAY900,{letterSpacing:'-0.3px'})}>Course Management</div>
+            <div style={cf(13,400,C_GRAY400,{marginTop:2})}>Create, publish and organise all learning courses</div>
+          </div>
         </div>
-        <button style={btn(true)} onClick={openCreate}>
-          <span style={{ color: '#fff' }}>{icons.plus}</span> New Course
+        <button style={cBtnPrimary} onClick={openCreate}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/></svg>
+          New Course
         </button>
       </div>
 
-      {error && (
-        <div style={{ background: 'rgba(240,92,92,0.1)', border: `1px solid ${RED}`, borderRadius: 10,
-          padding: '10px 14px', ...font(13, 400, RED) }}>{error}</div>
-      )}
+      {/* Stat cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, animation:'adminFadeIn 0.5s ease' }}>
+        <CStatCard icon="📚" label="Total Courses"   value={courses.length} gradient="linear-gradient(135deg,#EEF2FF,#C7D2FE)" />
+        <CStatCard icon="✅" label="Published"       value={courses.filter(c=>c.status==='PUBLISHED').length} gradient="linear-gradient(135deg,#ECFDF5,#A7F3D0)" />
+        <CStatCard icon="👥" label="Total Enrolled"  value={totalEnrolled} gradient="linear-gradient(135deg,#EFF6FF,#BFDBFE)" />
+        <CStatCard icon="🧩" label="Quizzes Active"  value={totalQuizzes} gradient="linear-gradient(135deg,#F5F3FF,#DDD6FE)" />
+      </div>
 
+      {error && <div style={{ background:'rgba(239,68,68,0.07)',border:'1.5px solid rgba(239,68,68,0.25)',borderRadius:12,padding:'11px 16px',...cf(13,500,'#EF4444') }}>⚠ {error}</div>}
+
+      {/* Course grid */}
       {loading ? <Spinner /> : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }}>
-            {courses.map((c, i) => (
-              <div key={c._id} style={{ background: '#fff', borderRadius: 16, boxShadow: SHADOW, overflow: 'hidden' }}>
-                <div style={{ height: 100, background: COURSE_GRADIENTS[i % COURSE_GRADIENTS.length],
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                  {c.thumbnailEmoji || COURSE_EMOJIS[i % COURSE_EMOJIS.length]}
-                </div>
-                <div style={{ padding: '14px 16px 16px' }}>
-                  <div style={{ ...font(14, 600, NAVY), marginBottom: 4 }}>{c.title}</div>
-                  {c.description && (
-                    <div style={{ ...font(12, 400, MUTED), marginBottom: 6,
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
-                      {c.description}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 8, ...font(12, 400, MUTED), marginBottom: 10, flexWrap: 'wrap' as const }}>
-                    {c.modules != null && <span>{c.modules} modules</span>}
-                    {c.duration && <span>{c.duration}</span>}
-                    <span>{(c.enrolledUsers ?? []).length} enrolled</span>
-                    {(c.assignedTrainers ?? []).length > 0 && (
-                      <span style={{ color: INDIGO }}>
-                        {(c.assignedTrainers ?? []).length} trainer{(c.assignedTrainers ?? []).length !== 1 ? 's' : ''} assigned
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    {c.status === 'PUBLISHED'
-                      ? <Badge color="#2a8c30" bg="rgba(95,201,102,0.12)">Published</Badge>
-                      : c.status === 'ARCHIVED'
-                        ? <Badge color={MUTED} bg="rgba(28,28,28,0.06)">Archived</Badge>
-                        : <Badge color="#b8740a" bg="rgba(245,166,35,0.12)">Draft</Badge>}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {c.status !== 'PUBLISHED' && (
-                        <button style={{ ...btn(true), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
-                          onClick={() => handlePublish(c)}>Publish</button>
-                      )}
-                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
-                        onClick={() => setEnrollModal(c)}>Enroll</button>
-                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
-                        onClick={() => setEnrollGroupModal(c)}>Group</button>
-                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: INDIGO, borderColor: INDIGO }}
-                        onClick={() => setAssignTrainerModal(c)}>Trainers</button>
-                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8 }}
-                        onClick={() => openEdit(c)}>Edit</button>
-                      <button style={{ ...btn(), fontSize: 12, padding: '5px 10px', borderRadius: 8, color: RED }}
-                        onClick={() => setDeleteCourse(c)}>Del</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:18, animation:'adminFadeIn 0.6s ease' }}>
+            {courses.map((c,i) => (
+              <AdminCourseCard key={c._id} course={c} idx={i}
+                onEdit={()=>openEdit(c)} onDelete={()=>setDeleteCourse(c)} onPublish={()=>handlePublish(c)}
+                onEnroll={()=>setEnrollModal(c)} onEnrollGroup={()=>setEnrollGroupModal(c)} onAssignTrainer={()=>setAssignTrainerModal(c)} />
             ))}
 
             {/* Create card */}
-            <div onClick={openCreate} style={{ borderRadius: 16, border: '2px dashed rgba(28,28,28,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, cursor: 'pointer' }}>
-              <div style={{ textAlign: 'center', color: MUTED }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>+</div>
-                <div style={{ ...font(14, 500, MUTED) }}>Create New Course</div>
-              </div>
+            <div onClick={openCreate}
+              style={{ borderRadius:18,border:`2px dashed ${C_GRAY200}`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:220,cursor:'pointer',transition:'all 0.2s',background:C_GRAY50 }}
+              onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.borderColor='#6366F1';(e.currentTarget as HTMLDivElement).style.background=C_INDIGO_LIGHT}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.borderColor=C_GRAY200;(e.currentTarget as HTMLDivElement).style.background=C_GRAY50}}>
+              <div style={{ width:52,height:52,borderRadius:16,background:'linear-gradient(135deg,#6366F1,#8B5CF6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12,boxShadow:C_SH_INDIGO }}>+</div>
+              <div style={cf(14,700,C_GRAY900)}>Create New Course</div>
+              <div style={cf(12,400,C_GRAY400,{marginTop:4})}>Add a course with modules & quizzes</div>
             </div>
           </div>
-
           <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
         </>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* ── Create / Edit Modal ── */}
       {(showCreate || editCourse) && (
-        <Modal title={editCourse ? 'Edit Course' : 'Create Course'} onClose={() => { setShowCreate(false); setEditCourse(null) }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Field label="Title">
-              <input style={inputStyle} value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            </Field>
-            <Field label="Description">
-              <textarea style={{ ...inputStyle, resize: 'vertical' as const }} rows={3} value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-            </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="Category">
-                <input style={inputStyle} value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))} />
-              </Field>
-              <Field label="Duration (e.g. 4.5h)">
-                <input style={inputStyle} value={form.duration}
-                  onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
-              </Field>
+        <div className="admin-course-modal" style={{ position:'fixed',inset:0,background:'rgba(17,24,39,0.55)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}>
+          <div style={{ background:C_WHITE,borderRadius:24,boxShadow:C_SH_LG,width:'100%',maxWidth:820,maxHeight:'92vh',overflowY:'auto',display:'flex',flexDirection:'column' }}>
+            {/* Header */}
+            <div style={{ padding:'24px 28px 0',position:'sticky',top:0,background:C_WHITE,zIndex:1,borderRadius:'24px 24px 0 0' }}>
+              <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20 }}>
+                <div>
+                  <div style={cf(19,700,C_GRAY900)}>{editCourse?'✏️ Edit Course':'✨ Create New Course'}</div>
+                  <div style={cf(13,400,C_GRAY400,{marginTop:3})}>{editCourse?editCourse.title:'Fill in the details and build your module content'}</div>
+                </div>
+                <button onClick={()=>{setShowCreate(false);setEditCourse(null);setError('')}} style={{ background:C_GRAY100,border:'none',cursor:'pointer',width:32,height:32,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',color:C_GRAY400,fontSize:16,flexShrink:0 }}>✕</button>
+              </div>
+              <CStepper step={editorStep} />
             </div>
-            <Field label="Status">
-              <select style={inputStyle} value={form.status}
-                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="DRAFT">Draft</option>
-                <option value="PUBLISHED">Published</option>
-                <option value="ARCHIVED">Archived</option>
-              </select>
-            </Field>
-            <Field label="Thumbnail Emoji">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-                {COURSE_EMOJIS.map(e => (
-                  <button key={e} onClick={() => setForm(f => ({ ...f, thumbnailEmoji: e }))}
-                    style={{ fontSize: 24, background: form.thumbnailEmoji === e ? BG : 'transparent',
-                      border: form.thumbnailEmoji === e ? `2px solid ${NAVY}` : '2px solid transparent',
-                      borderRadius: 8, cursor: 'pointer', padding: 4 }}>{e}</button>
-                ))}
-              </div>
-            </Field>
 
-            {/* ── Module / Slide Builder ── */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ ...font(13, 600, NAVY) }}>Modules &amp; Slides ({courseModules.length} module{courseModules.length !== 1 ? 's' : ''})</span>
-                <button style={btn(true)} onClick={() => setCourseModules(ms => [...ms, { name: `Module ${ms.length + 1}`, slides: [] }])}>
-                  + Add Module
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {courseModules.map((mod, mi) => (
-                  <div key={mi} style={{ border: BORDER, borderRadius: 10, overflow: 'hidden' }}>
-                    {/* Module header */}
-                    <div style={{ background: BG, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        style={{ ...inputStyle, flex: 1, margin: 0 }}
-                        placeholder={`Module ${mi + 1} name`}
-                        value={mod.name}
-                        onChange={e => setCourseModules(ms => ms.map((m, i) => i === mi ? { ...m, name: e.target.value } : m))}
-                      />
-                      <button
-                        onClick={() => setCourseModules(ms => ms.map((m, i) => i === mi ? { ...m, slides: [...m.slides, { content: '' }] } : m))}
-                        style={{ ...btn(true), whiteSpace: 'nowrap' as const, fontSize: 12, padding: '4px 10px', height: 'auto' }}
-                      >+ Slide</button>
-                      <button
-                        onClick={() => setCourseModules(ms => ms.filter((_, i) => i !== mi))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700, padding: '0 4px' }}
-                      >×</button>
+            <div style={{ padding:'4px 28px 28px',flex:1 }}>
+              {/* Step 1 — Info */}
+              {editorStep===1 && (
+                <div style={{ display:'flex',flexDirection:'column',gap:16,animation:'adminFadeIn 0.3s ease' }}>
+                  <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
+                    <div>
+                      <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:5})}>Course Title *</label>
+                      <input style={cInput} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Workplace Safety Fundamentals" autoFocus />
                     </div>
-                    {/* Slides */}
-                    {mod.slides.length > 0 && (
-                      <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {mod.slides.map((slide, si) => (
-                          <div key={si} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                            <div style={{ ...font(11, 500, MUTED), paddingTop: 10, flexShrink: 0, minWidth: 52 }}>
-                              Slide {si + 1}
-                            </div>
-                            <textarea
-                              style={{ ...inputStyle, flex: 1, resize: 'vertical' as const, minHeight: 70, margin: 0 }}
-                              placeholder="Slide content (text)…"
-                              value={slide.content}
-                              onChange={e => setCourseModules(ms => ms.map((m, i) =>
-                                i !== mi ? m : { ...m, slides: m.slides.map((s, j) => j === si ? { content: e.target.value } : s) }
-                              ))}
-                            />
-                            <button
-                              onClick={() => setCourseModules(ms => ms.map((m, i) =>
-                                i !== mi ? m : { ...m, slides: m.slides.filter((_, j) => j !== si) }
-                              ))}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700, padding: '6px 4px' }}
-                            >×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {mod.slides.length === 0 && (
-                      <div style={{ padding: '8px 12px', ...font(12, 400, MUTED) }}>No slides yet — click "+ Slide" to add one.</div>
-                    )}
-
-                    {/* ── Quiz section ── */}
-                    <div style={{ borderTop: `1px solid ${BORDER.replace('1px solid ','')}`, margin: '0 12px' }} />
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 14 }}>🧩</span>
-                          <span style={{ ...font(13, 600, NAVY) }}>Quiz after this module</span>
-                          {mod.quiz && <span style={{ ...font(11, 500, '#fff'), background: INDIGO, borderRadius: 99, padding: '2px 8px' }}>{mod.quiz.questions.length} Q</span>}
-                        </div>
-                        {mod.quiz ? (
-                          <button
-                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: undefined }))}
-                            style={{ ...font(11, 500, RED), background: 'none', border: `1px solid ${RED}`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
-                          >Remove Quiz</button>
-                        ) : (
-                          <button
-                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { passingScore: 70, questions: [emptyQuestion()] } }))}
-                            style={{ ...btn(true), fontSize: 12, padding: '4px 12px' }}
-                          >+ Add Quiz</button>
-                        )}
-                      </div>
-
-                      {mod.quiz && (
-                        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
-                          {/* Passing score */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(108,99,255,0.06)', borderRadius: 8, border: '1px solid rgba(108,99,255,0.2)' }}>
-                            <span style={font(12, 500, NAVY)}>Passing score:</span>
-                            <input
-                              type="number" min="0" max="100"
-                              value={mod.quiz.passingScore}
-                              onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, passingScore: Number(e.target.value) } }))}
-                              style={{ width: 60, ...inputStyle, margin: 0, padding: '4px 8px', fontSize: 13 }}
-                            />
-                            <span style={font(12, 400, MUTED)}>%</span>
-                          </div>
-
-                          {/* Questions */}
-                          {mod.quiz.questions.map((q, qi) => (
-                            <div key={qi} style={{ border: BORDER, borderRadius: 10, overflow: 'hidden', background: '#fafafa' }}>
-                              <div style={{ background: 'rgba(108,99,255,0.07)', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ ...font(12, 700, '#fff'), background: INDIGO, borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11 }}>Q{qi + 1}</span>
-                                <input
-                                  style={{ ...inputStyle, flex: 1, margin: 0, fontSize: 13 }}
-                                  placeholder={`Question ${qi + 1}…`}
-                                  value={q.question}
-                                  onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
-                                    ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, question: e.target.value }) }
-                                  }))}
-                                />
-                                <button
-                                  onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.filter((_, j) => j !== qi) } }))}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED, fontSize: 16, fontWeight: 700 }}
-                                >×</button>
-                              </div>
-                              <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
-                                {q.options.map((opt, oi) => (
-                                  <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input
-                                      type="radio" name={`correct-${mi}-${qi}`}
-                                      checked={q.correctIndex === oi}
-                                      onChange={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
-                                        ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, correctIndex: oi }) }
-                                      }))}
-                                      title="Mark as correct answer"
-                                    />
-                                    <input
-                                      style={{ ...inputStyle, flex: 1, margin: 0, fontSize: 13, borderColor: q.correctIndex === oi ? GREEN : undefined }}
-                                      placeholder={`Option ${String.fromCharCode(65 + oi)}`}
-                                      value={opt}
-                                      onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
-                                        ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, options: qq.options.map((o, k) => k === oi ? e.target.value : o) }) }
-                                      }))}
-                                    />
-                                    {q.correctIndex === oi && <span style={{ ...font(10, 700, GREEN), flexShrink: 0 }}>✓ Correct</span>}
-                                  </div>
-                                ))}
-                                <input
-                                  style={{ ...inputStyle, margin: 0, fontSize: 12 }}
-                                  placeholder="Explanation (optional)…"
-                                  value={q.explanation ?? ''}
-                                  onChange={e => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : {
-                                    ...m, quiz: { ...m.quiz!, questions: m.quiz!.questions.map((qq, j) => j !== qi ? qq : { ...qq, explanation: e.target.value }) }
-                                  }))}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                          <button
-                            onClick={() => setCourseModules(ms => ms.map((m, i) => i !== mi ? m : { ...m, quiz: { ...m.quiz!, questions: [...m.quiz!.questions, emptyQuestion()] } }))}
-                            style={{ ...btn(), fontSize: 12, padding: '5px 14px', alignSelf: 'flex-start' as const, borderColor: INDIGO, color: INDIGO }}
-                          >+ Add Question</button>
-                        </div>
-                      )}
+                    <div>
+                      <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:5})}>Category</label>
+                      <input style={cInput} value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} placeholder="e.g. Health & Safety, IT…" />
                     </div>
                   </div>
-                ))}
+                  <div>
+                    <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:5})}>Description</label>
+                    <textarea style={{...cInput,minHeight:84,resize:'vertical' as const}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Brief overview of what learners will gain…" />
+                  </div>
+                  <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
+                    <div>
+                      <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:5})}>Duration (optional)</label>
+                      <input style={cInput} value={form.duration} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} placeholder="e.g. 4.5h" />
+                    </div>
+                    <div>
+                      <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:5})}>Status</label>
+                      <select style={{...cInput,cursor:'pointer',color:C_GRAY900}} value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
+                        <option value="DRAFT">🔒 Draft — hidden from learners</option>
+                        <option value="PUBLISHED">✅ Published — visible to learners</option>
+                        <option value="ARCHIVED">📦 Archived</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={cf(13,600,C_GRAY600,{display:'block',marginBottom:8})}>Course Icon</label>
+                    <div style={{ display:'flex',flexWrap:'wrap' as const,gap:6 }}>
+                      {ALL_EMOJIS.map(em=>(
+                        <button key={em} onClick={()=>setForm(f=>({...f,thumbnailEmoji:em}))}
+                          style={{ width:40,height:40,borderRadius:10,border:`2px solid ${form.thumbnailEmoji===em?'#6366F1':C_GRAY200}`,background:form.thumbnailEmoji===em?C_INDIGO_LIGHT:C_WHITE,fontSize:20,cursor:'pointer',transition:'all 0.15s',boxShadow:form.thumbnailEmoji===em?C_SH_INDIGO:C_SH_SM }}>
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2 — Modules */}
+              {editorStep===2 && (
+                <div style={{ animation:'adminFadeIn 0.3s ease' }}>
+                  <CUploadZone onParsed={handleBulkParsed} />
+                  <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14 }}>
+                    <div style={cf(14,700,C_GRAY900)}>Modules <span style={cf(12,500,C_GRAY400,{marginLeft:4})}>{`(${courseModules.length})`}</span></div>
+                    <button style={cBtnPrimary} onClick={()=>setCourseModules(ms=>[...ms,{name:`Module ${ms.length+1}`,slides:[{content:''}]}])}>+ Add Module</button>
+                  </div>
+                  {courseModules.map((mod,mi)=>(
+                    <CModuleCard key={mi} mod={mod} mi={mi} total={courseModules.length}
+                      onChange={u=>setCourseModules(ms=>ms.map((m,i)=>i===mi?u:m))}
+                      onRemove={()=>setCourseModules(ms=>ms.filter((_,i)=>i!==mi))} />
+                  ))}
+                  {courseModules.length===0 && (
+                    <div style={{ textAlign:'center',padding:'32px 0',background:C_GRAY50,borderRadius:14,border:`2px dashed ${C_GRAY200}` }}>
+                      <div style={{ fontSize:32,marginBottom:10 }}>📦</div>
+                      <div style={cf(14,600,C_GRAY900)}>No modules yet</div>
+                      <div style={cf(12,400,C_GRAY400,{marginTop:4})}>Upload from Excel above or add a module manually</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3 — Review */}
+              {editorStep===3 && (
+                <div style={{ animation:'adminFadeIn 0.3s ease' }}>
+                  <div style={{ background:`linear-gradient(135deg,${C_INDIGO_LIGHT},rgba(139,92,246,0.08))`,border:'1px solid rgba(99,102,241,0.2)',borderRadius:14,padding:18,marginBottom:20 }}>
+                    <div style={cf(14,700,C_GRAY900,{marginBottom:10})}>✅ Course Summary</div>
+                    <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10 }}>
+                      {[['Title',form.title||'—'],['Modules',`${courseModules.length}`],['Quiz Qs',`${courseModules.reduce((s,m)=>s+(m.quiz?.questions.length??0),0)} total`]].map(([l,v])=>(
+                        <div key={l} style={{ background:C_WHITE,borderRadius:10,padding:'10px 14px',border:`1px solid ${C_GRAY200}` }}>
+                          <div style={cf(11,600,C_GRAY400)}>{l}</div>
+                          <div style={cf(13,700,C_GRAY900)}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {courseModules.map((mod,mi)=>(
+                    <CModuleCard key={mi} mod={mod} mi={mi} total={courseModules.length}
+                      onChange={u=>setCourseModules(ms=>ms.map((m,i)=>i===mi?u:m))}
+                      onRemove={()=>setCourseModules(ms=>ms.filter((_,i)=>i!==mi))} />
+                  ))}
+                </div>
+              )}
+
+              {error && <div style={{ ...cf(13,500,'#EF4444'),background:'rgba(239,68,68,0.06)',borderRadius:10,padding:'10px 14px',marginTop:12 }}>⚠ {error}</div>}
+
+              {/* Footer */}
+              <div style={{ display:'flex',justifyContent:'space-between',marginTop:24,paddingTop:20,borderTop:`1px solid ${C_GRAY100}` }}>
+                <div>{editorStep>1&&<button style={cBtnSecondary} onClick={()=>setEditorStep(s=>s-1)}>← Back</button>}</div>
+                <div style={{ display:'flex',gap:10 }}>
+                  <button style={cBtnSecondary} onClick={()=>{setShowCreate(false);setEditCourse(null);setError('')}}>Cancel</button>
+                  {editorStep<3
+                    ?<button style={{...cBtnPrimary,opacity:stepOk?1:0.5}} disabled={!stepOk} onClick={()=>setEditorStep(s=>s+1)}>Continue →</button>
+                    :<button style={cBtnPrimary} onClick={handleSave} disabled={saving}>{saving?'⏳ Saving…':editCourse?'💾 Save Changes':'🚀 Create Course'}</button>}
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            {error && <div style={{ ...font(13, 400, RED) }}>{error}</div>}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button style={btn()} onClick={() => { setShowCreate(false); setEditCourse(null) }}>Cancel</button>
-              <button style={btn(true)} onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : editCourse ? 'Save Changes' : 'Create Course'}
+      {/* ── Enroll Modal ── */}
+      {enrollModal && (
+        <Modal title="👤 Enroll Users" onClose={()=>setEnrollModal(null)}>
+          <div style={cf(13,500,C_GRAY600,{marginBottom:14})}>{enrollModal.title}</div>
+          <div style={{ marginBottom:12,display:'flex',alignItems:'center',gap:8,background:C_GRAY50,border:`1.5px solid ${C_GRAY200}`,borderRadius:10,padding:'9px 14px' }}>
+            {icons.search}
+            <input type="text" placeholder="Search users…" value={enrollSearch} onChange={e=>setEnrollSearch(e.target.value)}
+              style={{ border:'none',background:'transparent',outline:'none',fontFamily:C_FF,fontSize:13,width:'100%' }} />
+          </div>
+          <div style={{ maxHeight:300,overflowY:'auto',display:'flex',flexDirection:'column',gap:6,marginBottom:16 }}>
+            {enrollUsers.map(u=>{
+              const isSel=selectedEnrollIds.includes(u._id)
+              const initials=`${u.firstName?.[0]??''}${u.lastName?.[0]??''}`.toUpperCase()
+              return (
+                <label key={u._id} onClick={()=>setSelectedEnrollIds(p=>isSel?p.filter(x=>x!==u._id):[...p,u._id])}
+                  style={{ display:'flex',alignItems:'center',gap:12,padding:'10px 12px',borderRadius:12,cursor:'pointer',background:isSel?C_INDIGO_LIGHT:C_WHITE,border:`1.5px solid ${isSel?'#6366F1':C_GRAY200}`,transition:'all 0.15s' }}>
+                  <div style={{ width:20,height:20,borderRadius:6,border:`2px solid ${isSel?'#6366F1':C_GRAY200}`,background:isSel?'#6366F1':C_WHITE,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                    {isSel&&<span style={{ color:C_WHITE,fontSize:11,fontWeight:700 }}>✓</span>}
+                  </div>
+                  <Avatar initials={initials||'?'} size={30} />
+                  <div style={{ flex:1 }}>
+                    <div style={cf(13,600,C_GRAY900)}>{u.firstName} {u.lastName}</div>
+                    <div style={cf(11,400,C_GRAY400)}>{u.email}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <div style={{ display:'flex',gap:10,justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:`1px solid ${C_GRAY100}` }}>
+            <span style={cf(12,500,C_GRAY400)}>{selectedEnrollIds.length} selected</span>
+            <div style={{ display:'flex',gap:8 }}>
+              <button style={cBtnSecondary} onClick={()=>setEnrollModal(null)}>Cancel</button>
+              <button style={{...cBtnPrimary,opacity:selectedEnrollIds.length===0||enrolling?0.5:1}} onClick={handleEnroll} disabled={enrolling||selectedEnrollIds.length===0}>
+                {enrolling?'Enrolling…':`Enroll ${selectedEnrollIds.length} User${selectedEnrollIds.length!==1?'s':''}`}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Enroll Modal */}
-      {enrollModal && (
-        <Modal title={`Enroll Users — ${enrollModal.title}`} onClose={() => setEnrollModal(null)}>
-          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
-            background: BG, border: BORDER, borderRadius: 10, padding: '8px 12px' }}>
-            {icons.search}
-            <input type="text" placeholder="Search users…" value={enrollSearch}
-              onChange={e => setEnrollSearch(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none',
-                fontFamily: FF, fontSize: 13, width: '100%' }} />
-          </div>
-          <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
-            {enrollUsers.map(u => {
-              const isSel = selectedEnrollIds.includes(u._id)
-              const initials = `${u.firstName?.[0] ?? ''}${u.lastName?.[0] ?? ''}`.toUpperCase()
-              return (
-                <div key={u._id} onClick={() => setSelectedEnrollIds(p => isSel ? p.filter(x => x !== u._id) : [...p, u._id])}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                    borderRadius: 10, cursor: 'pointer', background: isSel ? 'rgba(28,28,28,0.05)' : 'transparent' }}>
-                  <input type="checkbox" checked={isSel} readOnly style={{ cursor: 'pointer' }} />
-                  <Avatar initials={initials || '?'} size={28} />
-                  <div>
-                    <div style={{ ...font(13, 500, NAVY) }}>{u.firstName} {u.lastName}</div>
-                    <div style={{ ...font(11, 400, MUTED) }}>{u.email}</div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button style={btn()} onClick={() => setEnrollModal(null)}>Cancel</button>
-            <button style={btn(true)} onClick={handleEnroll} disabled={enrolling || selectedEnrollIds.length === 0}>
-              {enrolling ? 'Enrolling…' : `Enroll ${selectedEnrollIds.length} User${selectedEnrollIds.length !== 1 ? 's' : ''}`}
+      {/* ── Group Enroll Modal ── */}
+      {enrollGroupModal && (
+        <Modal title="👥 Enroll by Group" onClose={()=>setEnrollGroupModal(null)}>
+          <div style={cf(13,400,C_GRAY400,{marginBottom:14})}>Select a group to enroll all its members in <strong style={{color:C_GRAY900}}>{enrollGroupModal.title}</strong>.</div>
+          {enrollGroups.length===0 ? (
+            <div style={{ textAlign:'center',padding:'28px 0' }}>
+              <div style={{ fontSize:36,marginBottom:10 }}>👥</div>
+              <div style={cf(14,600,C_GRAY900)}>No groups found</div>
+              <div style={cf(13,400,C_GRAY400,{marginTop:4})}>Create a group first in Group Management.</div>
+            </div>
+          ) : (
+            <div style={{ display:'flex',flexDirection:'column',gap:8,maxHeight:320,overflowY:'auto',marginBottom:16 }}>
+              {enrollGroups.map(g=>{
+                const isSel=selectedGroupId===g._id
+                return (
+                  <label key={g._id} onClick={()=>setSelectedGroupId(g._id)}
+                    style={{ display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,cursor:'pointer',border:`1.5px solid ${isSel?'#6366F1':C_GRAY200}`,background:isSel?C_INDIGO_LIGHT:C_WHITE,transition:'all 0.15s' }}>
+                    <input type="radio" readOnly checked={isSel} style={{ accentColor:'#6366F1',cursor:'pointer' }} />
+                    <div style={{ width:38,height:38,borderRadius:12,background:'linear-gradient(135deg,#6366F1,#8B5CF6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>👥</div>
+                    <div style={{ flex:1 }}>
+                      <div style={cf(14,600,C_GRAY900)}>{g.name}</div>
+                      <div style={cf(12,400,C_GRAY400)}>{g.members?.length??0} member{(g.members?.length??0)!==1?'s':''}</div>
+                    </div>
+                    {isSel&&<CChip label="✓ Selected" color="#6366F1" bg={C_INDIGO_LIGHT} />}
+                  </label>
+                )
+              })}
+            </div>
+          )}
+          <div style={{ display:'flex',gap:10,justifyContent:'flex-end',paddingTop:12,borderTop:`1px solid ${C_GRAY100}` }}>
+            <button style={cBtnSecondary} onClick={()=>setEnrollGroupModal(null)}>Cancel</button>
+            <button style={{...cBtnPrimary,opacity:!selectedGroupId||enrollingGroup?0.5:1}} onClick={handleEnrollGroup} disabled={enrollingGroup||!selectedGroupId}>
+              {enrollingGroup?'Enrolling…':selectedGroupId?`Enroll Group (${enrollGroups.find(g=>g._id===selectedGroupId)?.members?.length??0} members)`:'Select a Group'}
             </button>
           </div>
         </Modal>
       )}
 
-      {/* Enroll by Group Modal */}
-      {enrollGroupModal && (
-        <Modal title={`Assign to Group — ${enrollGroupModal.title}`} onClose={() => setEnrollGroupModal(null)}>
-          <div style={{ ...font(13, 400, MUTED), marginBottom: 14 }}>
-            Select a group to enroll all its members in this course.
+      {/* ── Assign Trainers Modal ── */}
+      {assignTrainerModal && (
+        <Modal title="🎓 Assign Trainers" onClose={()=>setAssignTrainerModal(null)} width={560}>
+          <div style={cf(13,400,C_GRAY400,{marginBottom:14})}>Give trainers access to <strong style={{color:C_GRAY900}}>{assignTrainerModal.title}</strong>. They can view, manage, and enroll learners.</div>
+          <div style={{ position:'relative',marginBottom:12 }}>
+            <input style={{...cInput,paddingLeft:36}} placeholder="Search trainers…" value={trainerSearch} onChange={e=>setTrainerSearch(e.target.value)} />
+            <svg style={{ position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none' }} width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke={C_GRAY400} strokeWidth="1.3"/><path d="M9.5 9.5L12 12" stroke={C_GRAY400} strokeWidth="1.3" strokeLinecap="round"/></svg>
           </div>
-          {enrollGroups.length === 0 ? (
-            <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: '20px 0' }}>
-              No groups found. Create a group first in Group Management.
+          {allTrainers.length===0 ? (
+            <div style={{ textAlign:'center',padding:'24px 0' }}>
+              <div style={{ fontSize:34,marginBottom:10 }}>🎓</div>
+              <div style={cf(14,600,C_GRAY900)}>No trainers found</div>
+              <div style={cf(13,400,C_GRAY400,{marginTop:4})}>Add users with the TRAINER role first.</div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
-              {enrollGroups.map(g => {
-                const isSelected = selectedGroupId === g._id
+            <div style={{ display:'flex',flexDirection:'column',gap:6,maxHeight:300,overflowY:'auto',marginBottom:16 }}>
+              {allTrainers.filter(t=>{ const q=trainerSearch.toLowerCase(); return !q||`${t.firstName} ${t.lastName} ${t.email}`.toLowerCase().includes(q) }).map(t=>{
+                const isAssigned=(assignTrainerModal.assignedTrainers??[]).includes(t._id)
+                const isSel=selectedTrainerIds.includes(t._id)
+                const initials=`${t.firstName?.[0]??''}${t.lastName?.[0]??''}`.toUpperCase()
                 return (
-                  <div key={g._id} onClick={() => setSelectedGroupId(g._id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                      borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${isSelected ? INDIGO : '#e0e0e8'}`,
-                      background: isSelected ? 'rgba(108,99,255,0.06)' : '#fff', transition: 'all 0.15s' }}>
-                    <input type="radio" readOnly checked={isSelected} style={{ accentColor: INDIGO, cursor: 'pointer' }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ ...font(14, 600, NAVY) }}>{g.name}</div>
-                      <div style={{ ...font(12, 400, MUTED) }}>{g.members?.length ?? 0} member{(g.members?.length ?? 0) !== 1 ? 's' : ''}</div>
+                  <div key={t._id}
+                    style={{ display:'flex',alignItems:'center',gap:12,padding:'10px 12px',borderRadius:12,border:`1.5px solid ${isSel?'#6366F1':C_GRAY200}`,background:isSel?C_INDIGO_LIGHT:C_WHITE,cursor:'pointer',transition:'all 0.15s' }}
+                    onClick={()=>setSelectedTrainerIds(prev=>prev.includes(t._id)?prev.filter(id=>id!==t._id):[...prev,t._id])}>
+                    <div style={{ width:20,height:20,borderRadius:6,border:`2px solid ${isSel?'#6366F1':C_GRAY200}`,background:isSel?'#6366F1':C_WHITE,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                      {isSel&&<span style={{ color:C_WHITE,fontSize:11,fontWeight:700 }}>✓</span>}
                     </div>
-                    {isSelected && (
-                      <div style={{ ...font(11, 600, INDIGO) }}>✓ Selected</div>
+                    <Avatar initials={initials} size={32} />
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={cf(13,600,C_GRAY900)}>{t.firstName} {t.lastName}</div>
+                      <div style={{ ...cf(11,400,C_GRAY400),overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{t.email}</div>
+                    </div>
+                    {isAssigned&&(
+                      <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+                        <CChip label="Has access" color="#6366F1" bg={C_INDIGO_LIGHT} />
+                        <button onClick={e=>{e.stopPropagation();handleRevokeTrainer(assignTrainerModal._id,t._id)}}
+                          style={{ background:'rgba(239,68,68,0.08)',border:'none',cursor:'pointer',width:24,height:24,borderRadius:6,color:'#EF4444',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center' }} title="Revoke">×</button>
+                      </div>
                     )}
                   </div>
                 )
               })}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button style={btn()} onClick={() => setEnrollGroupModal(null)}>Cancel</button>
-            <button style={btn(true)} onClick={handleEnrollGroup}
-              disabled={enrollingGroup || !selectedGroupId}>
-              {enrollingGroup ? 'Enrolling…' : selectedGroupId
-                ? `Enroll Group (${enrollGroups.find(g => g._id === selectedGroupId)?.members?.length ?? 0} members)`
-                : 'Select a Group'}
+          <div style={{ display:'flex',gap:10,justifyContent:'flex-end',paddingTop:12,borderTop:`1px solid ${C_GRAY100}` }}>
+            <button style={cBtnSecondary} onClick={()=>setAssignTrainerModal(null)}>Cancel</button>
+            <button style={{...cBtnPrimary,opacity:selectedTrainerIds.length===0||assigning?0.5:1}} onClick={handleAssignTrainers} disabled={assigning||selectedTrainerIds.length===0}>
+              {assigning?'Assigning…':`Assign ${selectedTrainerIds.length>0?`(${selectedTrainerIds.length}) `:''}Trainer${selectedTrainerIds.length!==1?'s':''}`}
             </button>
           </div>
         </Modal>
       )}
 
-      {/* Assign Trainers Modal */}
-      {assignTrainerModal && (
-        <Modal title={`Assign Trainers — ${assignTrainerModal.title}`} onClose={() => setAssignTrainerModal(null)}>
-          <div style={{ ...font(13, 400, MUTED), marginBottom: 12 }}>
-            Select trainers to give access to this course. They'll be able to view, manage, and enroll learners.
-          </div>
-
-          {/* Search box */}
-          <div style={{ position: 'relative', marginBottom: 12 }}>
-            <input
-              style={{ ...inputStyle, paddingLeft: 34 }}
-              placeholder="Search trainers…"
-              value={trainerSearch}
-              onChange={e => setTrainerSearch(e.target.value)}
-            />
-            <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-              width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="6" cy="6" r="4.5" stroke={MUTED} strokeWidth="1.2" />
-              <path d="M9.5 9.5L12 12" stroke={MUTED} strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-          </div>
-
-          {/* Trainer list */}
-          {allTrainers.length === 0 ? (
-            <div style={{ ...font(13, 400, MUTED), textAlign: 'center', padding: '20px 0' }}>
-              No trainers found. Add users with the TRAINER role first.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
-              {allTrainers
-                .filter(t => {
-                  const q = trainerSearch.toLowerCase()
-                  return !q || `${t.firstName} ${t.lastName} ${t.email}`.toLowerCase().includes(q)
-                })
-                .map(t => {
-                  const isAssigned = (assignTrainerModal.assignedTrainers ?? []).includes(t._id)
-                  const isSelected = selectedTrainerIds.includes(t._id)
-                  const initials = `${t.firstName?.[0] ?? ''}${t.lastName?.[0] ?? ''}`.toUpperCase()
-                  return (
-                    <div key={t._id}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                        borderRadius: 10, border: `1.5px solid ${isSelected ? INDIGO : '#e0e0e8'}`,
-                        background: isSelected ? 'rgba(108,99,255,0.05)' : '#fff',
-                        cursor: 'pointer', transition: 'all 0.15s' }}
-                      onClick={() => setSelectedTrainerIds(prev =>
-                        prev.includes(t._id) ? prev.filter(id => id !== t._id) : [...prev, t._id]
-                      )}
-                    >
-                      <input type="checkbox" readOnly checked={isSelected}
-                        style={{ accentColor: INDIGO, cursor: 'pointer', flexShrink: 0 }} />
-                      <Avatar initials={initials} size={32} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ ...font(13, 600, NAVY) }}>{t.firstName} {t.lastName}</div>
-                        <div style={{ ...font(11, 400, MUTED), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.email}</div>
-                      </div>
-                      {isAssigned && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ ...badge(INDIGO, 'rgba(108,99,255,0.1)'), fontSize: 11 }}>Has access</span>
-                          <button
-                            onClick={e => { e.stopPropagation(); handleRevokeTrainer(assignTrainerModal._id, t._id) }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: RED,
-                              fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
-                            title="Revoke access"
-                          >×</button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button style={btn()} onClick={() => setAssignTrainerModal(null)}>Cancel</button>
-            <button style={{ ...btn(true), opacity: selectedTrainerIds.length === 0 || assigning ? 0.6 : 1 }}
-              onClick={handleAssignTrainers}
-              disabled={assigning || selectedTrainerIds.length === 0}>
-              {assigning ? 'Assigning…' : `Assign ${selectedTrainerIds.length > 0 ? `(${selectedTrainerIds.length})` : ''} Trainer${selectedTrainerIds.length !== 1 ? 's' : ''}`}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* Delete Confirm */}
+      {/* ── Delete Confirm ── */}
       {deleteCourse && (
-        <ConfirmDialog
-          message={`Delete "${deleteCourse.title}"? All enrolled users will lose access.`}
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteCourse(null)}
-          loading={deleting}
-        />
+        <div style={{ position:'fixed',inset:0,background:'rgba(17,24,39,0.55)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center' }}>
+          <div style={{ background:C_WHITE,borderRadius:20,padding:32,maxWidth:400,width:'100%',boxShadow:C_SH_LG }}>
+            <div style={{ width:60,height:60,borderRadius:18,background:'rgba(239,68,68,0.1)',margin:'0 auto 16px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28 }}>🗑️</div>
+            <div style={cf(18,700,C_GRAY900,{marginBottom:8,textAlign:'center'})}>Delete this course?</div>
+            <div style={cf(14,400,C_GRAY400,{marginBottom:28,textAlign:'center'})}>
+              <strong style={{color:C_GRAY900}}>{deleteCourse.title}</strong> will be permanently deleted and all enrolled users will lose access.
+            </div>
+            <div style={{ display:'flex',gap:10,justifyContent:'center' }}>
+              <button style={{...cBtnSecondary,padding:'10px 24px'}} onClick={()=>setDeleteCourse(null)}>Cancel</button>
+              <button style={{...cBtnDanger,padding:'10px 24px'}} onClick={handleDelete} disabled={deleting}>{deleting?'Deleting…':'Yes, Delete'}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
