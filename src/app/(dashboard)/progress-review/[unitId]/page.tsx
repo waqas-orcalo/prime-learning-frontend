@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { apiFetch } from '@/lib/api-client'
 
 const svg = (s: string) => `data:image/svg+xml,${encodeURIComponent(s)}`
 const iconBack = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none"><circle cx="16" cy="16" r="15" stroke="#1c1c1c" stroke-width="1.5"/><path d="M18 11l-5 5 5 5" stroke="#1c1c1c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
-const iconCaret = svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="#1c1c1c" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 
 const FF = { fontFamily: "'Inter', sans-serif", fontFeatureSettings: "'ss01' 1, 'cv01' 1, 'cv11' 1" } as const
 const font = (size: number, weight = 400, color = '#1c1c1c', extra: React.CSSProperties = {}) =>
@@ -20,36 +20,101 @@ const TABS = [
   'EPA Confirmation',
 ]
 
-const SUB_ITEMS = [
-  { label: '[1] Mock Knowledge Test', progress: 0 },
-  { label: '[2] Portfolio Based Mock Interview', progress: 0 },
-  { label: '[3] Project/Improvement Presentation', progress: 0 },
-  { label: '[4] EPA Confirmation', progress: 0 },
-]
+interface ProgressReviewEntry {
+  _id: string
+  notes?: string
+  reviewDate: string
+  trainerId: string
+  signatures?: Array<{ role: string; name: string; date: string; signed: boolean }>
+}
 
-const TOOLBAR_BUTTONS = [
-  { icon: '14', label: '' },
-  { icon: 'T', label: '' },
-  { icon: '●', label: '' },
-  { icon: 'B', label: '' },
-  { icon: 'I', label: '' },
-  { icon: 'U', label: '' },
-  { icon: 'S', label: '' },
-  { icon: '≡', label: '' },
-  { icon: '≣', label: '' },
-  { icon: '⊡', label: '' },
-  { icon: '⧉', label: '' },
-  { icon: '🔗', label: '' },
-]
+interface Activity {
+  _id: string
+  title: string
+  status: string
+  method?: string
+  activityDate?: string
+}
+
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr)
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`
+}
+
+function getTrainerName(review: ProgressReviewEntry): string {
+  const trainerSig = review.signatures?.find(s =>
+    s.role?.toUpperCase() === 'TRAINER' && s.signed
+  )
+  return trainerSig?.name || 'Trainer'
+}
+
+function formatMethod(method: string): string {
+  return (method || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
 
 function ProgressUnitDetailsInner() {
   const router = useRouter()
-  const params = useParams()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const token = (session?.user as any)?.accessToken
   const [activeTab, setActiveTab] = useState(0)
   const [selectedUnit, setSelectedUnit] = useState(1)
   const [comment, setComment] = useState('')
-  const learnerName = [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ') || 'Learner'
+  const [reviews, setReviews] = useState<ProgressReviewEntry[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [isSigned, setIsSigned] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  const learnerName =
+    [(session?.user as any)?.firstName, (session?.user as any)?.lastName].filter(Boolean).join(' ') || 'Learner'
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!token) { setLoading(false); return }
+
+    let cancelled = false
+
+    const fetchAll = async () => {
+      setLoading(true)
+      try {
+        const [reviewResp, actResp] = await Promise.all([
+          apiFetch<any>('/progress-review?limit=10&page=1', token),
+          apiFetch<any>('/learning-activities?limit=200&page=1', token),
+        ])
+
+        if (cancelled) return
+
+        // reviews — paginatedResponse wraps array in resp.data directly
+        const rawReviews = reviewResp?.data
+        const reviewList: ProgressReviewEntry[] = Array.isArray(rawReviews)
+          ? rawReviews
+          : (rawReviews?.data ?? [])
+        setReviews(reviewList)
+        setIsSigned(reviewList.some(r => r.signatures && r.signatures.some(s => s.signed)))
+
+        // activities
+        const rawActs = actResp?.data
+        const actList: Activity[] = Array.isArray(rawActs) ? rawActs : (rawActs?.data ?? [])
+        setActivities(actList)
+      } catch (err) {
+        if (!cancelled) console.error('Unit detail fetch error:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchAll()
+    return () => { cancelled = true }
+  }, [token, status])
+
+  const feedbackReviews = reviews.filter(r => r.notes && r.notes.trim())
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1060, ...FF }}>
@@ -69,18 +134,17 @@ function ProgressUnitDetailsInner() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={font(13, 500)}>Unit: {selectedUnit}</span>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedUnit}
-              onChange={e => setSelectedUnit(Number(e.target.value))}
-              style={{ padding: '3px 24px 3px 8px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: 6, ...font(12), background: '#fff', appearance: 'none', cursor: 'pointer' }}
-            >
-              {[1, 2, 3, 4, 5].map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-            <img src={iconCaret} width={10} height={10} alt="" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-          </div>
+          <select
+            value={selectedUnit}
+            onChange={e => setSelectedUnit(Number(e.target.value))}
+            style={{ padding: '3px 10px', border: '1px solid rgba(28,28,28,0.2)', borderRadius: 6, ...font(12), background: '#fff', cursor: 'pointer' }}
+          >
+            {[1, 2, 3, 4, 5].map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
         </div>
-        <span style={font(12, 500, '#16a34a')}>This plan of activity/action has already been signed.</span>
+        {isSigned && (
+          <span style={font(12, 500, '#16a34a')}>This plan of activity/action has already been signed.</span>
+        )}
       </div>
 
       {/* Tabs */}
@@ -101,7 +165,7 @@ function ProgressUnitDetailsInner() {
 
       {/* Tab content */}
       {activeTab === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Meta row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
@@ -120,11 +184,16 @@ function ProgressUnitDetailsInner() {
           <h3 style={{ ...font(14, 600), margin: 0 }}>[Unit 01] Gateway to End Point Assessment</h3>
 
           {/* Sub-items */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {SUB_ITEMS.map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(28,28,28,0.05)' }}>
-                <span style={font(13)}>{item.label}</span>
-                <span style={font(12, 400, '#888')}>Progress: {item.progress}%</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {[
+              '[1] Mock Knowledge Test',
+              '[2] Portfolio Based Mock Interview',
+              '[3] Project/Improvement Presentation',
+              '[4] EPA Confirmation',
+            ].map((label, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(28,28,28,0.05)' }}>
+                <span style={font(13)}>{label}</span>
+                <span style={font(12, 400, '#888')}>Progress: 0%</span>
               </div>
             ))}
           </div>
@@ -132,12 +201,41 @@ function ProgressUnitDetailsInner() {
           {/* Related Learning Activities */}
           <div>
             <h4 style={{ ...font(13, 600), margin: '0 0 6px' }}>Related Learning Activities</h4>
-            <p style={{ ...font(12, 400, '#888'), margin: '0 0 4px', lineHeight: '18px' }}>
+            <p style={{ ...font(12, 400, '#888'), margin: '0 0 6px', lineHeight: '18px' }}>
               NB. Secondary methods are encapsulated with square brackets, e.g. [OB1]
             </p>
-            <p style={{ ...font(12, 400, '#888'), margin: 0, lineHeight: '18px' }}>
-              There are no related learning activities for this Unit - pending learning activities are not included in your portfolio.
-            </p>
+            {loading ? (
+              <p style={font(12, 400, '#aaa')}>Loading activities...</p>
+            ) : activities.length === 0 ? (
+              <p style={{ ...font(12, 400, '#888'), margin: 0, lineHeight: '18px' }}>
+                There are no related learning activities for this Unit - pending learning activities are not included in your portfolio.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {activities.slice(0, 8).map(act => (
+                  <div key={act._id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', background: '#f8f9fa', borderRadius: 6,
+                    border: '1px solid rgba(28,28,28,0.06)'
+                  }}>
+                    <span style={font(12)}>{act.title}</span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {act.method && <span style={font(11, 400, '#888')}>{formatMethod(act.method)}</span>}
+                      <span style={{
+                        padding: '2px 7px', borderRadius: 10, ...font(11, 500),
+                        background: act.status === 'COMPLETED' ? '#dcfce7' : act.status === 'IN_PROGRESS' ? '#fef3c7' : '#f3f4f6',
+                        color: act.status === 'COMPLETED' ? '#16a34a' : act.status === 'IN_PROGRESS' ? '#d97706' : '#888',
+                      }}>{act.status}</span>
+                    </div>
+                  </div>
+                ))}
+                {activities.length > 8 && (
+                  <p style={{ ...font(11, 400, '#888'), margin: '4px 0 0' }}>
+                    +{activities.length - 8} more activities
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Attachments */}
@@ -149,14 +247,25 @@ function ProgressUnitDetailsInner() {
           {/* Feedback & Comments */}
           <div>
             <h4 style={{ ...font(13, 600), margin: '0 0 12px' }}>Feedback &amp; Comments</h4>
-            <div style={{ padding: '10px 0', borderTop: '1px solid rgba(28,28,28,0.07)', marginBottom: 12 }}>
-              <p style={{ ...font(12, 400, '#555'), margin: '0 0 4px' }}>
-                {`From: Tahmidul Hassan (Trainer) on 10/02/2025 19:49 To: ${learnerName} (Learner) Unread`}
-              </p>
-              <p style={{ ...font(13), margin: 0 }}>Good job</p>
-            </div>
 
-            {/* Rich text area */}
+            {loading ? (
+              <p style={{ ...font(12, 400, '#aaa'), margin: '0 0 12px' }}>Loading feedback...</p>
+            ) : feedbackReviews.length === 0 ? (
+              <p style={{ ...font(12, 400, '#aaa'), margin: '0 0 12px' }}>No feedback yet.</p>
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                {feedbackReviews.map(review => (
+                  <div key={review._id} style={{ padding: '12px 0', borderTop: '1px solid rgba(28,28,28,0.07)' }}>
+                    <p style={{ ...font(12, 400, '#555'), margin: '0 0 5px' }}>
+                      {`From: ${getTrainerName(review)} (Trainer) on ${formatDateTime(review.reviewDate)} To: ${learnerName} (Learner) Unread`}
+                    </p>
+                    <p style={{ ...font(13), margin: 0, lineHeight: '20px' }}>{review.notes}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Reply area */}
             <div style={{ border: '1px solid rgba(28,28,28,0.15)', borderRadius: 8, overflow: 'hidden' }}>
               <textarea
                 value={comment}
@@ -168,16 +277,14 @@ function ProgressUnitDetailsInner() {
                   resize: 'none', ...font(13), background: '#fff', boxSizing: 'border-box'
                 }}
               />
-              {/* Toolbar */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px',
                 borderTop: '1px solid rgba(28,28,28,0.08)', background: '#fafafa', flexWrap: 'wrap'
               }}>
-                {['14 ▾', 'T', '●', 'B', 'I', 'U', 'S', '≡', '≡', '≡', '⊡', '⧉', '🔗'].map((btn, i) => (
-                  <button key={i} style={{
-                    padding: '3px 6px', background: 'none', border: 'none', cursor: 'pointer',
-                    ...font(12), borderRadius: 4, color: '#444'
-                  }}>{btn}</button>
+                {['14 ▾', 'T', 'B', 'I', 'U', 'S', '≡', '≡', '≡', '⊡'].map((btn, i) => (
+                  <button key={i} style={{ padding: '3px 6px', background: 'none', border: 'none', cursor: 'pointer', ...font(12), borderRadius: 4, color: '#444' }}>
+                    {btn}
+                  </button>
                 ))}
               </div>
             </div>
@@ -185,17 +292,22 @@ function ProgressUnitDetailsInner() {
 
           {/* Send/Cancel */}
           <div style={{ display: 'flex', gap: 10 }}>
-            <button style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}>
+            <button
+              onClick={() => setComment('')}
+              style={{ padding: '9px 20px', background: '#1c1c1c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', ...font(13, 500, '#fff') }}
+            >
               Send
             </button>
-            <button onClick={() => setComment('')} style={{ padding: '9px 20px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}>
+            <button
+              onClick={() => setComment('')}
+              style={{ padding: '9px 20px', background: '#fff', color: '#1c1c1c', border: '1px solid rgba(28,28,28,0.25)', borderRadius: 8, cursor: 'pointer', ...font(13, 500) }}
+            >
               Cancel
             </button>
           </div>
         </div>
       )}
 
-      {/* Other tabs placeholder */}
       {activeTab > 0 && (
         <div style={{ padding: '32px', textAlign: 'center' }}>
           <p style={font(14, 400, '#aaa')}>{TABS[activeTab]} — content coming soon</p>
@@ -208,4 +320,3 @@ function ProgressUnitDetailsInner() {
 export default function Page() {
   return <Suspense><ProgressUnitDetailsInner /></Suspense>
 }
-// progress-timestamp: 1774401037

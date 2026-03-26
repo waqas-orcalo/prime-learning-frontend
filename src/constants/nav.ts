@@ -24,7 +24,12 @@ export const BREADCRUMB_MAP: Record<string, string[]> = {
   '/messages': ['Dashboards', 'Messages'],
   '/scorecard': ['Dashboards', 'Scorecard'],
   '/courses': ['Dashboards', 'Courses'],
-  '/progress-review': ['Dashboards', 'Progress Review'],
+  '/progress-review': ['Dashboards', 'Scorecard'],
+  '/progress-review/u1': ['Dashboards', 'Scorecard', 'Progress Unit Details'],
+  '/progress-review/u2': ['Dashboards', 'Scorecard', 'Progress Unit Details'],
+  '/progress-review/u3': ['Dashboards', 'Scorecard', 'Progress Unit Details'],
+  '/progress-review/u4': ['Dashboards', 'Scorecard', 'Progress Unit Details'],
+  '/progress-review/u5': ['Dashboards', 'Scorecard', 'Progress Unit Details'],
   '/activity-log': ['Dashboards', 'Activity Log'],
   '/resources': ['Dashboards', 'Resources'],
 }

@@ -33,15 +33,20 @@ interface Activity {
 interface UnitData {
   id: string
   name: string
-  actual: number
-  total: number
   progress: number
 }
 
 function ProgressBar({ value }: { value: number }) {
   return (
-    <div style={{ width: '100%', height: 7, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${value}%`, background: '#818cf8', borderRadius: 4, transition: 'width 0.4s' }} />
+    <div style={{ position: 'relative', width: '100%', height: 24, background: '#e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${value}%`, background: '#818cf8', borderRadius: 6, transition: 'width 0.4s' }} />
+      <span style={{
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        ...font(12, 700, '#fff'),
+      }}>
+        {value}%
+      </span>
     </div>
   )
 }
@@ -60,19 +65,20 @@ function UnitCard({ unit, onClick }: { unit: UnitData; onClick: () => void }) {
         transition: 'background 0.15s'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-        <img src={iconBook} width={24} height={24} alt="" style={{ flexShrink: 0, marginTop: 2 }} />
-        <span style={{ ...font(13, 500), lineHeight: '20px' }}>{unit.name}</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <img src={iconBook} width={20} height={20} alt="" />
+        </div>
+        <span style={{ ...font(13, 600), lineHeight: '20px' }}>{unit.name}</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 16, alignItems: 'end' }}>
         <div>
-          <p style={{ ...font(11, 400, '#888'), margin: '0 0 4px' }}>Completed / Total</p>
-          <p style={{ ...font(16, 600), margin: 0 }}>{unit.actual} <span style={{ ...font(13, 400, '#aaa') }}>/ {unit.total}</span></p>
+          <p style={{ ...font(11, 400, '#888'), margin: '0 0 4px' }}>Actual:</p>
+          <p style={{ ...font(22, 700), margin: 0 }}>{unit.progress}%</p>
         </div>
         <div>
-          <p style={{ ...font(11, 400, '#888'), margin: '0 0 6px' }}>Overall Progress</p>
+          <p style={{ ...font(11, 400, '#888'), margin: '0 0 6px' }}>Unit Progress</p>
           <ProgressBar value={unit.progress} />
-          <p style={{ ...font(11, 700, '#6366f1'), margin: '4px 0 0', textAlign: 'right' }}>{unit.progress}%</p>
         </div>
       </div>
     </button>
@@ -81,54 +87,66 @@ function UnitCard({ unit, onClick }: { unit: UnitData; onClick: () => void }) {
 
 function ProgressReviewInner() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const token = (session?.user as any)?.accessToken
 
   const [includePending, setIncludePending] = useState(false)
   const [showDetailed, setShowDetailed] = useState(false)
   const [selectedUnit, setSelectedUnit] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [activities, setActivities] = useState<Activity[]>([])
   const [units, setUnits] = useState<UnitData[]>([])
   const [overallProgress, setOverallProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!token) { setLoading(false); return }
+    // Wait until next-auth has resolved the session
+    if (status === 'loading') return
+
+    // Unauthenticated or no token — show 0% cards
+    if (!token) {
+      setUnits(QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 })))
+      setLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
 
     const fetchData = async () => {
+      setLoading(true)
+      setError(null)
       try {
-        setLoading(true)
-        // Fetch all learning activities (high limit to get all)
         const resp = await apiFetch<any>('/learning-activities?limit=200&page=1', token)
-        const acts: Activity[] = resp?.data?.data ?? resp?.data ?? []
-        setActivities(acts)
+        // Handle both {data:[]} and {data:{data:[]}} shapes
+        const raw = resp?.data
+        const acts: Activity[] = Array.isArray(raw) ? raw : (raw?.data ?? [])
 
         const total = acts.length
-        const completed = acts.filter((a: Activity) => a.status === 'COMPLETED').length
-        const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+        const completedActs = acts.filter((a: Activity) => a.status === 'COMPLETED')
+        const pendingActs = acts.filter((a: Activity) => a.status === 'PENDING')
+        const countForProgress = includePending ? total : (total - pendingActs.length)
+        const completed = completedActs.length
+        const pct = countForProgress > 0 ? Math.round((completed / countForProgress) * 100) : 0
         setOverallProgress(pct)
 
-        // Since activities are not linked to specific units in the DB,
-        // each unit card shows the overall completion stats
-        setUnits(QUALIFICATION_UNITS.map((u) => ({
-          ...u,
-          actual: completed,
-          total,
-          progress: pct,
-        })))
-      } catch (err) {
-        console.error('Failed to fetch progress data:', err)
-        // Fallback to static structure with 0 progress
-        setUnits(QUALIFICATION_UNITS.map(u => ({ ...u, actual: 0, total: 0, progress: 0 })))
+        setUnits(QUALIFICATION_UNITS.map((u) => ({ ...u, progress: pct })))
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.error('Failed to fetch progress data:', err)
+          setError('Could not load progress data.')
+        }
+        setUnits(QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 })))
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
 
     fetchData()
-  }, [token, includePending])
+    return () => { controller.abort(); clearTimeout(timeoutId) }
+  }, [token, includePending, status])
 
-  const displayUnits = units.length > 0 ? units : QUALIFICATION_UNITS.map(u => ({ ...u, actual: 0, total: 0, progress: 0 }))
+  const displayUnits = units.length > 0 ? units : QUALIFICATION_UNITS.map(u => ({ ...u, progress: 0 }))
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1060, ...FF }}>
@@ -158,35 +176,6 @@ function ProgressReviewInner() {
         </div>
       </div>
 
-      {/* Summary stats row */}
-      {!loading && activities.length > 0 && (
-        <div style={{
-          display: 'flex', gap: 16, marginBottom: 20,
-          padding: '12px 16px', background: '#f8f9fa', borderRadius: 10,
-          border: '1px solid rgba(28,28,28,0.08)'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={font(11, 400, '#888')}>Total Activities</span>
-            <span style={font(18, 700)}>{activities.length}</span>
-          </div>
-          <div style={{ width: 1, background: 'rgba(28,28,28,0.1)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={font(11, 400, '#888')}>Completed</span>
-            <span style={font(18, 700, '#16a34a')}>{activities.filter(a => a.status === 'COMPLETED').length}</span>
-          </div>
-          <div style={{ width: 1, background: 'rgba(28,28,28,0.1)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={font(11, 400, '#888')}>In Progress</span>
-            <span style={font(18, 700, '#f59e0b')}>{activities.filter(a => a.status === 'IN_PROGRESS').length}</span>
-          </div>
-          <div style={{ width: 1, background: 'rgba(28,28,28,0.1)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={font(11, 400, '#888')}>Pending</span>
-            <span style={font(18, 700, '#6366f1')}>{activities.filter(a => a.status === 'PENDING').length}</span>
-          </div>
-        </div>
-      )}
-
       {/* Unit selector bar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
@@ -214,9 +203,21 @@ function ProgressReviewInner() {
         </button>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, marginBottom: 16, ...font(13, 400, '#dc2626') }}>
+          {error}
+        </div>
+      )}
+
       {/* Unit cards grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', ...font(14, 400, '#888') }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '40px', ...font(14, 400, '#888') }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+            <circle cx="12" cy="12" r="10" stroke="#d1d5db" strokeWidth="3" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="#818cf8" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
           Loading progress data...
         </div>
       ) : (
@@ -233,4 +234,4 @@ function ProgressReviewInner() {
 export default function Page() {
   return <Suspense><ProgressReviewInner /></Suspense>
 }
-// progress-timestamp: 1774401037
+// progress-timestamp: 1774401038
