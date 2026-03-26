@@ -218,9 +218,16 @@ export default function MessagesView() {
   const [sideSearch,    setSideSearch]    = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const activeConvRef = useRef<Conversation | null>(null)
+  // Mobile panel-switch: 'list' shows conversation list, 'chat' shows the chat/new-chat panel
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
 
   // Keep ref in sync so SSE callback always reads the latest activeConv
   useEffect(() => { activeConvRef.current = activeConv }, [activeConv])
+
+  // Mobile: switch to chat panel when a conversation is opened or new-chat is shown
+  useEffect(() => {
+    setMobileView(activeConv || showNewChat ? 'chat' : 'list')
+  }, [activeConv, showNewChat])
 
   // ── Load conversations sidebar ───────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -395,10 +402,10 @@ export default function MessagesView() {
   return (
     <>
       <style>{`@keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }`}</style>
-      <div style={{ margin: '-24px -28px', height: 'calc(100vh - 72px)', display: 'flex', overflow: 'hidden', backgroundColor: '#fff', borderTop: '1px solid #e4e7ec' }}>
+      <div className="msg-root" style={{ margin: '-24px -28px', height: 'calc(100vh - 72px)', display: 'flex', overflow: 'hidden', backgroundColor: '#fff', borderTop: '1px solid #e4e7ec' }}>
 
         {/* ── LEFT PANEL ────────────────────────────────────── */}
-        <div style={{ width: 416, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e4e7ec', height: '100%' }}>
+        <div className={`msg-left${mobileView === 'chat' ? ' msg-mobile-hidden' : ''}`} style={{ width: 416, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #e4e7ec', height: '100%' }}>
 
           {/* Search + compose */}
           <div style={{ padding: '16px 16px 0', display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -468,6 +475,7 @@ export default function MessagesView() {
         </div>
 
         {/* ── RIGHT PANEL ───────────────────────────────────── */}
+        <div className={`msg-right${mobileView === 'list' ? ' msg-mobile-hidden' : ''}`} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         {showNewChat ? (
           <NewChatPanel token={token ?? ''} onClose={() => setShowNewChat(false)} onStart={handleStartNewChat} />
 
@@ -484,6 +492,11 @@ export default function MessagesView() {
             {/* Chat header */}
             <div style={{ borderBottom: '1px solid #cbd5e1', padding: '14px 24px', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Mobile back button — hidden on desktop via CSS */}
+                <button className="msg-back-btn" onClick={() => setMobileView('list')}
+                  style={{ display: 'none', width: 36, height: 36, borderRadius: '50%', border: '1px solid #e4e7ec', background: 'none', cursor: 'pointer', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 16l-6-6 6-6" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
                 <Avatar name={fullName(activeConv)} size={44} />
                 <div>
                   <div style={{ ...font(16, 700), lineHeight: '22px' }}>{fullName(activeConv)}</div>
@@ -563,6 +576,7 @@ export default function MessagesView() {
             </div>
           </div>
         )}
+        </div>{/* /msg-right */}
       </div>
     </>
   )
