@@ -4,15 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 
-// ── Validation — match backend @MinLength(8) ─────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-})
-type LoginForm = z.infer<typeof loginSchema>
+// ── Form types ────────────────────────────────────────────────────────────────
+type LoginForm = {
+  email: string
+  password: string
+}
 
 const FF = "'Inter', sans-serif"
 const font = (size: number, weight = 400, color = '#1c1c1c') => ({
@@ -72,9 +69,7 @@ export default function LoginPage() {
   const [serverError, setServerError]     = useState('')
   const [isSubmitting, setIsSubmitting]   = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  })
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
 
   const onSubmit = async (data: LoginForm) => {
     setServerError('')
@@ -163,7 +158,10 @@ export default function LoginPage() {
           <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', borderRadius: 8, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, border: errors.email ? '1px solid #f43f5e' : '1px solid transparent', marginBottom: 2 }}>
             <UserIcon />
             <input
-              {...register('email')}
+              {...register('email', {
+                required: 'Please enter a valid email',
+                pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Please enter a valid email' },
+              })}
               type="email"
               placeholder="Email address"
               autoComplete="email"
@@ -176,7 +174,10 @@ export default function LoginPage() {
           <div style={{ backgroundColor: 'rgba(28,28,28,0.05)', borderRadius: 8, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, border: errors.password ? '1px solid #f43f5e' : '1px solid transparent' }}>
             <KeyIcon />
             <input
-              {...register('password')}
+              {...register('password', {
+                required: 'Password must be at least 8 characters',
+                minLength: { value: 8, message: 'Password must be at least 8 characters' },
+              })}
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               autoComplete="current-password"
