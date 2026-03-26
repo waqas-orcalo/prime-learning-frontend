@@ -11,7 +11,6 @@ const AVATAR_COLORS = ['#1c1c1c', '#3b5bdb', '#2f9e44', '#c92a2a', '#e67700', '#
 
 function ProgressRow({ learner, index }: { learner: any; index: number }) {
   const fullName  = `${learner.firstName} ${learner.lastName}`
-  // Use real stats from API (enriched by /trainer/my-learners)
   const progress  = learner.stats?.progressPercent ?? 0
   const statusLabel = progress >= 60 ? 'On Track' : progress >= 30 ? 'Behind' : 'At Risk'
   const statusColor = progress >= 60 ? '#16a34a' : progress >= 30 ? '#d97706' : '#b91c1c'
@@ -73,17 +72,14 @@ function ProgressRow({ learner, index }: { learner: any; index: number }) {
 function ProgressInner() {
   const { data, isLoading, isError } = useTrainerLearners({ limit: 50 })
   const learners = data?.data ?? []
-
-  // Count statuses using real API stats
   const onTrack = learners.filter((l: any) => (l.stats?.progressPercent ?? 0) >= 60).length
   const behind  = learners.filter((l: any) => { const p = l.stats?.progressPercent ?? 0; return p >= 30 && p < 60 }).length
   const atRisk  = learners.filter((l: any) => (l.stats?.progressPercent ?? 0) < 30).length
 
   return (
     <div style={{ maxWidth: 1100, ...FF }}>
-      <h1 style={{ ...font(22, 700), marginBottom: 24 }}>Learner Progress</h1>
+      <h1 style={{ ...font(22, 700), marginBottom: 24 }}>Progress</h1>
 
-      {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
         {[
           { label: 'On Track', count: onTrack, bg: '#dcfce7', border: '#86d9a8', color: '#15803d' },
@@ -99,18 +95,15 @@ function ProgressInner() {
         ))}
       </div>
 
-      {/* Table */}
       <div style={{ border: '1px solid rgba(28,28,28,0.1)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '12px 18px', background: '#fafafa', borderBottom: '1px solid rgba(28,28,28,0.08)' }}>
           <span style={font(13, 600)}>All Learners ({learners.length})</span>
         </div>
-
         {isError && (
           <div style={{ padding: '10px 16px', background: '#fef2f2' }}>
             <span style={font(12, 400, '#ef4444')}>Failed to load progress data.</span>
           </div>
         )}
-
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(28,28,28,0.06)' }}>
@@ -122,7 +115,7 @@ function ProgressInner() {
             </div>
           ))
           : learners.length === 0
-            ? <p style={{ ...font(14, 400, '#aaa'), textAlign: 'center', padding: '40px 0' }}>No learners assigned. Use the Learners page to assign learners.</p>
+            ? <p style={{ ...font(14, 400, '#aaa'), textAlign: 'center', padding: '40px 0' }}>No learners assigned.</p>
             : learners.map((l: any, i: number) => <ProgressRow key={l._id} learner={l} index={i} />)
         }
       </div>
