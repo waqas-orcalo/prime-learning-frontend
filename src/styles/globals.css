@@ -409,6 +409,47 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
+/* ── Messages Module — Responsive ─────────────────────────────────────────── */
+
+/*
+ * Panel-switch pattern: on mobile, only ONE panel is visible at a time.
+ * msg-left  = conversation list sidebar
+ * msg-right = chat window / new-chat panel
+ * msg-mobile-hidden is toggled via JS state (mobileView: 'list' | 'chat')
+ */
+
+/* Back button: hidden on desktop, shown on mobile */
+.msg-back-btn { display: none !important; }
+
+@media (max-width: 768px) {
+  /* Correct the negative margin to match mobile content padding (16px 14px) */
+  .msg-root { margin: -16px -14px !important; }
+
+  /* Hide whichever panel is not active */
+  .msg-mobile-hidden { display: none !important; }
+
+  /* Left panel: fill full width, remove desktop border */
+  .msg-left {
+    width: 100% !important;
+    flex-shrink: 1 !important;
+    border-right: none !important;
+  }
+
+  /* Right panel: fill full width */
+  .msg-right { width: 100% !important; }
+
+  /* Show back button */
+  .msg-back-btn { display: flex !important; }
+
+  /* Slightly smaller avatar in conversation rows to give text more room */
+  .msg-left .msg-conv-row { padding: 12px 14px; }
+}
+
+@media (max-width: 480px) {
+  /* Correct for small-mobile padding (12px 10px) */
+  .msg-root { margin: -12px -10px !important; }
+}
+
 /* ── Trainer tasks filter bar ─────────────────────────────────────────────── */
 @keyframes shimmer {
   0%   { background-position: 200% 0 }
