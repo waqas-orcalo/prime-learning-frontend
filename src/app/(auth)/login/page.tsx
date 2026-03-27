@@ -76,7 +76,7 @@ export default function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://gateway.primecollege.org/api/v1'
 
       // ── Step 1: Pre-validate against backend to get a real error message ──
       // We call the backend first so we can surface specific messages like

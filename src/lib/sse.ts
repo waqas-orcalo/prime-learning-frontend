@@ -25,7 +25,7 @@ export function connectSse(
     eventSource = null
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://gateway.primecollege.org/api/v1'
   const url = `${apiUrl}/messages/stream?token=${encodeURIComponent(token)}`
 
   eventSource = new EventSource(url)

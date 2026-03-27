@@ -493,7 +493,7 @@ function EntryCard({
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1')
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://gateway.primecollege.org/api/v1')
 const API = `${API_BASE}/learning-journals`
 
 function normaliseEntry(e: any): JournalEntry {

@@ -10,7 +10,7 @@
  *
  * Frontend env var (baked into the browser bundle):
  *   NEXT_PUBLIC_API_URL=https://primecollege.org/api/proxy   ← for production
- *   NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1          ← for local dev
+ *   NEXT_PUBLIC_API_URL=https://gateway.primecollege.org/api/v1          ← for local dev
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const BACKEND = (
   process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:3000/api/v1'
+  'https://gateway.primecollege.org/api/v1'
 ).replace(/\/+$/, '')
 
 type Ctx = { params: { path: string[] } }
