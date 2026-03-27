@@ -3,32 +3,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 
-// ─── Validation schema ────────────────────────────────────────────────────────
-const signupSchema = z
-  .object({
-    firstName: z.string().min(2, 'First name must be at least 2 characters'),
-    lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-    email: z.string().email('Please enter a valid email address'),
-    role: z.enum(['LEARNER', 'TRAINER', 'ORG_ADMIN'], {
-      required_error: 'Please select a role',
-    }),
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
-      .regex(/[a-z]/, 'Must contain at least one lowercase letter')
-      .regex(/[0-9]/, 'Must contain at least one number'),
-    confirmPassword: z.string(),
-  })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  })
-
-type SignupForm = z.infer<typeof signupSchema>
+// ─── Form types ───────────────────────────────────────────────────────────────
+type SignupForm = {
+  firstName: string
+  lastName: string
+  email: string
+  role: 'LEARNER' | 'TRAINER' | 'ORG_ADMIN'
+  password: string
+  confirmPassword: string
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const FF = "'Inter', sans-serif"
@@ -193,8 +177,11 @@ export default function SignupPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
-  } = useForm<SignupForm>({ resolver: zodResolver(signupSchema) })
+  } = useForm<SignupForm>()
+
+  const passwordValue = watch('password', '')
 
   const onSubmit = async (data: SignupForm) => {
     setServerError('')
@@ -298,7 +285,7 @@ export default function SignupPage() {
             }}>
               <UserIcon />
               <input
-                {...register('firstName')}
+                {...register('firstName', { required: 'First name is required', minLength: { value: 2, message: 'First name must be at least 2 characters' } })}
                 type="text"
                 placeholder="First name"
                 style={{
@@ -323,7 +310,7 @@ export default function SignupPage() {
             }}>
               <UserIcon />
               <input
-                {...register('lastName')}
+                {...register('lastName', { required: 'Last name is required', minLength: { value: 2, message: 'Last name must be at least 2 characters' } })}
                 type="text"
                 placeholder="Last name"
                 style={{
@@ -344,7 +331,7 @@ export default function SignupPage() {
         {/* Email */}
         <FieldRow icon={<MailIcon />} error={errors.email?.message}>
           <input
-            {...register('email')}
+            {...register('email', { required: 'Email is required', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Please enter a valid email address' } })}
             type="email"
             placeholder="Email address"
             style={{
@@ -359,7 +346,7 @@ export default function SignupPage() {
         <FieldRow icon={<RoleIcon />} error={errors.role?.message}>
           <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
             <select
-              {...register('role')}
+              {...register('role', { required: 'Please select a role' })}
               defaultValue=""
               style={{
                 flex: 1, border: 'none', background: 'none', outline: 'none',
@@ -385,7 +372,15 @@ export default function SignupPage() {
         {/* Password */}
         <FieldRow icon={<KeyIcon />} error={errors.password?.message}>
           <input
-            {...register('password')}
+            {...register('password', {
+              required: 'Password is required',
+              minLength: { value: 8, message: 'Password must be at least 8 characters' },
+              validate: {
+                uppercase: v => /[A-Z]/.test(v) || 'Must contain at least one uppercase letter',
+                lowercase: v => /[a-z]/.test(v) || 'Must contain at least one lowercase letter',
+                number:    v => /[0-9]/.test(v) || 'Must contain at least one number',
+              },
+            })}
             type={showPassword ? 'text' : 'password'}
             placeholder="Password"
             style={{
@@ -406,7 +401,10 @@ export default function SignupPage() {
         {/* Confirm password */}
         <FieldRow icon={<ShieldIcon />} error={errors.confirmPassword?.message}>
           <input
-            {...register('confirmPassword')}
+            {...register('confirmPassword', {
+              required: 'Please confirm your password',
+              validate: v => v === passwordValue || 'Passwords do not match',
+            })}
             type={showConfirm ? 'text' : 'password'}
             placeholder="Confirm password"
             style={{
