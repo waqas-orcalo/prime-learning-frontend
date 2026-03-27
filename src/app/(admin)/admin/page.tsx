@@ -53,7 +53,7 @@ const inputStyle: React.CSSProperties = {
 type Page = 'dashboard' | 'users' | 'courses' | 'tasks' | 'assign' | 'groups' | 'logs' | 'settings'
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-const apiBase = () => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+const apiBase = () => process.env.NEXT_PUBLIC_API_URL ?? 'https://gateway.primecollege.org/api/v1'
 const apiFetch = (url: string, token: string, init?: RequestInit) =>
   fetch(url, {
     ...init,

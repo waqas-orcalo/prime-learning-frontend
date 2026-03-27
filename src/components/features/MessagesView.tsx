@@ -58,7 +58,7 @@ const fullName  = (u: { firstName: string; lastName: string }) => `${u.firstName
 const initials  = (n: string) => n.split(/[\s\-_]/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('')
 const fmtTime   = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const fmtDay    = (iso: string) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'long' })
-const apiBase   = () => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+const apiBase   = () => process.env.NEXT_PUBLIC_API_URL ?? 'https://gateway.primecollege.org/api/v1'
 const apiFetch  = (url: string, token: string, init?: RequestInit) =>
   fetch(url, {
     ...init,

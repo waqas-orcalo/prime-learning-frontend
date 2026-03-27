@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { RootState } from '../store'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://gateway.primecollege.org/api/v1'
 
 /**
  * Single RTK Query API instance shared across the whole app.
